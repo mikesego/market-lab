@@ -110,18 +110,18 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="section">
-          <div className="container-shell" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(320px,.65fr)", gap: "clamp(2rem,7vw,7rem)", alignItems: "center" }}>
-            <div className="section-heading" style={{ margin: 0 }}>
+        <section className="section" aria-labelledby="learning-outcomes-heading">
+          <div className="container-shell learning-outcomes-grid">
+            <div className="section-heading learning-outcomes-copy">
               <span className="eyebrow">For the whole class</span>
-              <h2 className="display">Winning is clear. Learning is richer.</h2>
+              <h2 className="display" id="learning-outcomes-heading">Winning is clear. Learning is richer.</h2>
               <p>The season champion is the portfolio with the highest ending value. That stays simple and transparent. Separately, teachers can recognize research, reflection, diversification, persistence, and concept mastery—without secretly changing the standings.</p>
               <div className="hero-actions">
                 <Link className="button-primary" href="/educators">See the educator experience</Link>
                 <Link className="button-quiet" href="/how-it-works">Read how scoring works →</Link>
               </div>
             </div>
-            <div className="card-strong" style={{ padding: "1.5rem" }}>
+            <div className="card-strong recognition-card">
               <span className="eyebrow">What teachers can recognize</span>
               {["Best-researched decision", "Strongest reflection", "Smart risk management", "Most-improved reasoning", "Season portfolio leader"].map((item) => (
                 <div key={item} style={{ display: "flex", gap: ".7rem", alignItems: "center", padding: ".9rem 0", borderBottom: "1px solid var(--line)", fontWeight: 750 }}>

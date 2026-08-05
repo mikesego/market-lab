@@ -9,6 +9,24 @@ test("public experience is clear and accessible", async ({ page }) => {
   expect(results.violations).toEqual([]);
 });
 
+test("learning outcomes stack without overlap on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const section = page.getByRole("region", { name: "Winning is clear. Learning is richer." });
+  const copy = section.getByRole("heading", { name: "Winning is clear. Learning is richer." }).locator("..");
+  const recognitionCard = section.getByText("What teachers can recognize").locator("..");
+  const [copyBox, cardBox] = await Promise.all([copy.boundingBox(), recognitionCard.boundingBox()]);
+
+  expect(copyBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  if (!copyBox || !cardBox) throw new Error("Learning outcomes content did not render");
+
+  expect(copyBox.width).toBeGreaterThan(340);
+  expect(cardBox.y).toBeGreaterThanOrEqual(copyBox.y + copyBox.height + 32);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
 test("health is public but market jobs reject anonymous requests", async ({ request }) => {
   const health = await request.get("/api/health");
   expect(health.ok()).toBe(true);
