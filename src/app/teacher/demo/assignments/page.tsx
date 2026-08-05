@@ -1,0 +1,11 @@
+import { CalendarDays, CheckCircle2, ClipboardPlus, FileText } from "lucide-react";
+
+import { getTeacherGameDTO } from "@/lib/data/teacher";
+
+export const dynamic = "force-dynamic";
+
+export default async function TeacherAssignmentsPage() {
+  const data = await getTeacherGameDTO();
+  if (!data) return null;
+  return <><div className="page-title"><div><span className="eyebrow">Learning work</span><h1>Assignments</h1><p className="muted" style={{ margin: ".6rem 0 0" }}>Ask students to explain, compare, and revise—not to predict perfectly.</p></div><button className="button-primary" type="button"><ClipboardPlus size={17} /> New assignment</button></div><div className="lesson-grid">{data.assignments.map((assignment) => <article className="card lesson-card" key={assignment.id}><div><div style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}><span className="status-pill"><FileText size={13} />{assignment.type}</span><span className="muted" style={{ fontSize: ".72rem" }}><CalendarDays size={13} style={{ display: "inline", marginRight: 4 }} />Due {assignment.dueAt?.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div><h2 className="display" style={{ fontSize: "2rem", margin: "1rem 0 .45rem" }}>{assignment.title}</h2><p className="muted" style={{ fontSize: ".84rem", lineHeight: 1.6 }}>{assignment.instructions}</p></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="positive" style={{ fontWeight: 800, fontSize: ".76rem" }}><CheckCircle2 size={15} style={{ display: "inline", marginRight: 5 }} />1 of {data.roster.length} submitted</span><button className="button-secondary" type="button">Review work</button></div></article>)}</div><section style={{ marginTop: "2rem" }}><span className="eyebrow">Suggested prompts</span><div className="discover-grid" style={{ marginTop: "1rem" }}>{["Compare an ETF with one company", "Revisit a decision after new evidence", "Explain one risk the price does not show"].map((prompt) => <div className="card" style={{ padding: "1.1rem" }} key={prompt}><strong>{prompt}</strong><p className="muted" style={{ fontSize: ".78rem", lineHeight: 1.55 }}>Ready-to-customize reflection prompt with a simple teacher rubric.</p></div>)}</div></section></>;
+}

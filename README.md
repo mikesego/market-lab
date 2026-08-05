@@ -1,0 +1,103 @@
+# Market Lab
+
+Market Lab is a classroom stock-market simulation for grades 3–8. Students research familiar public companies and funds, manage a $100,000 practice portfolio, place market or limit orders during U.S. market sessions, and explain the reasoning behind each decision. Teachers get a separate classroom workspace for seasons, rosters, activity, assignments, financial standings, and learning evidence.
+
+The official competition is intentionally simple: the portfolio with the greatest ending equity wins. Because every student in a season starts with the same amount, ranking by ending equity and total return produces the same order. Lessons, journal work, and teacher recognitions are reported separately and never modify financial rank.
+
+## Current deployment mode
+
+The checked-in provider is `deterministic-replay-v1`. It creates stable, realistic-looking development prices without claiming to be live market data. The UI labels this mode conspicuously. It is suitable for development, demonstrations, and adult evaluation; it is not licensed for use with real students.
+
+Before real-student launch, implement the existing `MarketDataProvider` contract with a licensed business feed and complete the launch gates in [docs/PRIVACY_LAUNCH_CHECKLIST.md](docs/PRIVACY_LAUNCH_CHECKLIST.md).
+
+## Product areas
+
+- Public site: product explanation, educator information, privacy, terms, accessibility, service status, and student join.
+- Student app: dashboard, discovery, company/fund pages, charts, watchlist context, market/limit tickets, queued/open/filled orders, cancellation, holdings, returns, learning labs, decision journal, achievements, and financial leaderboard.
+- Teacher workspace: Clerk-authenticated season creation, configurable dates/guardrails, pseudonymous student accounts, development-season controls, and an extensive seeded classroom console.
+- Trading/accounting engine: market calendar, holidays and early closes, cash reservation, concurrency locks, positions, average cost, realized gains, fills, immutable cash ledger, splits, cash dividends, and audit events.
+- Operations: health API, authenticated market-job endpoint, provider readiness signal, and restricted system console.
+
+The full approved product and engineering specification is in [PRODUCT_SPEC.md](PRODUCT_SPEC.md).
+
+## Stack
+
+- Next.js 16 App Router, React 19, TypeScript, and Tailwind CSS 4
+- Clerk for adult/teacher authentication
+- Pseudonymous class-code + username + PIN authentication for students
+- Neon Postgres, Drizzle ORM, and generated SQL migrations
+- Decimal.js for money/share calculations
+- Vitest for financial/calendar unit tests
+- Playwright and axe-core for responsive end-to-end and accessibility tests
+- Vercel for hosting
+
+## Local setup
+
+Requirements: Node.js 20+, npm, and a Postgres database.
+
+1. Copy `.env.example` to `.env.local` and fill the required values.
+2. Install packages with `npm ci`.
+3. Apply migrations with `npm run db:migrate`.
+4. Create the demonstration class with `npm run db:seed`.
+5. Start the app with `npm run dev`.
+
+Open [http://localhost:3000](http://localhost:3000).
+
+Seeded student login:
+
+- Class code: `OAK-724`
+- Username: `AveryFox`
+- PIN: `2468`
+
+The shared demo PIN is deliberate and must never be copied into a real class. Teacher-created accounts use a teacher-selected unique PIN whose one-way scrypt hash is stored.
+
+## Environment variables
+
+See [.env.example](.env.example). Important values are:
+
+- `DATABASE_URL` and `DATABASE_URL_UNPOOLED`: Neon/Postgres connections.
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`: adult authentication.
+- `NEXT_PUBLIC_APP_URL`: canonical production origin.
+- `STUDENT_AUTH_PEPPER`: independent server secret for hashing login-rate-limit identifiers.
+- `CRON_SECRET`: bearer credential for `/api/jobs/market`.
+- `OPERATOR_EMAILS`: comma-separated adults allowed to use `/ops` in production.
+
+Never expose provider credentials or privileged database credentials to the browser. `NEXT_PUBLIC_` is reserved for intentionally public values.
+
+## Commands
+
+```bash
+npm run dev             # development server
+npm run check           # lint, typecheck, unit tests, and production build
+npm run test:e2e        # desktop and mobile browser journeys + accessibility
+npm run db:generate     # generate a migration from schema changes
+npm run db:migrate      # apply migrations
+npm run db:seed         # idempotently seed the demo
+npm run db:reset-demo   # erase and rebuild only OAK-724 demo data
+```
+
+## Protected market jobs
+
+Queued orders and due corporate actions are processed by:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  https://stocks.mikesego.com/api/jobs/market
+```
+
+Attach an external scheduler or a Vercel Cron plan with a frequency appropriate to the selected quote license. The endpoint uses transactional row locks and idempotent provider event IDs, so overlapping invocations do not double-fill an order or double-apply a corporate action.
+
+## Data model and safety
+
+The ledger, fills, and audit trail are server-owned. Clients submit intent; they never set balances, fill prices, rank, or ownership identifiers. Every teacher-owned route verifies the authenticated adult and the specific season owner. Student sessions use random opaque tokens in `HttpOnly`, `Secure` production cookies. Failed student logins are rate-limited using HMAC-derived device/network identifiers rather than raw IP storage.
+
+Market Lab is educational software, not a broker, adviser, or recommendation engine. It never connects student actions to real brokerage orders.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Market-data provider and launch recommendation](docs/MARKET_DATA_PROVIDER.md)
+- [Operations runbook](docs/OPERATIONS_RUNBOOK.md)
+- [Privacy and launch checklist](docs/PRIVACY_LAUNCH_CHECKLIST.md)
+- [Testing](docs/TESTING.md)
