@@ -9,6 +9,7 @@ import type { PricePoint, Quote } from "./types";
 const ALPACA_DATA_URL = "https://data.alpaca.markets";
 const REQUEST_TIMEOUT_MS = 8_000;
 const QUOTE_CACHE_MS = 3_000;
+const MAX_SNAPSHOT_SYMBOLS = 25;
 
 const barSchema = z.object({
   t: z.string(),
@@ -97,7 +98,7 @@ async function fetchQuoteMap(symbols: string[]) {
     const result = new Map<string, Quote>();
     for (const symbol of normalized) {
       const snapshot = parsed.data[symbol] as AlpacaSnapshot | undefined;
-      if (!snapshot) throw new MarketDataUnavailableError(`Alpaca did not return a quote for ${symbol}.`);
+      if (!snapshot) continue;
       result.set(symbol, normalizeAlpacaSnapshot(symbol, snapshot, now));
     }
     return result;
@@ -123,7 +124,12 @@ export async function getAlpacaQuotes(
   symbols = MARKET_CATALOG.map((instrument) => instrument.symbol),
 ): Promise<Quote[]> {
   const normalized = normalizeSymbols(symbols);
-  const quotes = await fetchQuoteMap(normalized);
+  const quotes = new Map<string, Quote>();
+  for (let index = 0; index < normalized.length; index += MAX_SNAPSHOT_SYMBOLS) {
+    const batch = normalized.slice(index, index + MAX_SNAPSHOT_SYMBOLS);
+    const batchQuotes = await fetchQuoteMap(batch);
+    for (const [symbol, quote] of batchQuotes) quotes.set(symbol, quote);
+  }
   return normalized.map((symbol) => quotes.get(symbol)).filter((quote): quote is Quote => Boolean(quote));
 }
 
@@ -147,4 +153,3 @@ export async function getAlpacaSeries(symbol: string, days = 30): Promise<PriceP
   if (!points.length) throw new MarketDataUnavailableError(`Alpaca did not return price history for ${upperSymbol}.`);
   return points;
 }
-

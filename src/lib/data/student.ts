@@ -8,6 +8,7 @@ import {
   achievements,
   assignmentSubmissions,
   assignments,
+  fills,
   instruments,
   journalEntries,
   lessonProgress,
@@ -57,9 +58,13 @@ export async function getStudentPortfolioDTO() {
         status: orders.status,
         submittedQuote: orders.submittedQuote,
         submittedAt: orders.submittedAt,
+        fillPrice: fills.price,
+        executedAt: fills.executedAt,
+        rejectionMessage: orders.rejectionMessage,
       })
       .from(orders)
       .innerJoin(instruments, eq(orders.instrumentId, instruments.id))
+      .leftJoin(fills, eq(fills.orderId, orders.id))
       .where(eq(orders.portfolioId, session.portfolioId))
       .orderBy(desc(orders.submittedAt))
       .limit(12),

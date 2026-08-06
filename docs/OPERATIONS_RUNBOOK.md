@@ -9,9 +9,9 @@
 
 ## Market job
 
-Call `POST /api/jobs/market` with `Authorization: Bearer <CRON_SECRET>`. It processes waiting orders and due corporate actions. A 401 means the credential is missing or incorrect. A 500 means the invocation should be retried after inspecting logs.
+Vercel Cron calls `GET /api/jobs/market` every minute from 13:00–21:59 UTC on weekdays and supplies `Authorization: Bearer <CRON_SECRET>`. Operators may call `POST` with the same credential for an immediate retry. The job processes waiting orders and due corporate actions. A 401 means the credential is missing or incorrect. A 500 means the next scheduled invocation will retry still-pending work; inspect logs if failures repeat.
 
-During regular U.S. sessions, schedule frequently enough to meet the fill-timing policy disclosed to users. Keep overlapping invocations safe; transaction locks and idempotency keys are intentional defenses, not a substitute for monitoring.
+The broad UTC window covers the full Eastern-time session through daylight-saving changes. The matcher independently requires a fresh open-session quote, so the extra pre/post-market invocations cannot create fills. Keep overlapping invocations safe; transaction locks and idempotency keys are intentional defenses, not a substitute for monitoring.
 
 ## Incident priorities
 

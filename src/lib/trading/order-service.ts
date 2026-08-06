@@ -1,27 +1,31 @@
 import "server-only";
 
 import Decimal from "decimal.js";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   auditEvents,
   cashLedger,
   fills,
+  games,
   instruments,
   journalEntries,
   orders,
   portfolios,
   positions,
+  students,
 } from "@/db/schema";
 import { syncAlpacaInstrument } from "@/lib/instruments/service";
 import { getAlpacaAsset } from "@/lib/market/alpaca-assets";
 import { isSupportedStockOrEtf } from "@/lib/market/asset-utils";
+import { getUsEquitySession } from "@/lib/market/calendar";
 import { marketDataProvider } from "@/lib/market/provider";
 import type { Quote } from "@/lib/market/types";
 import {
   applyBuyToPosition,
   applySellToPosition,
+  evaluateOrderExecution,
   type OrderSide,
   type OrderType,
   validateOrder,
@@ -50,12 +54,8 @@ export class TradingError extends Error {
   }
 }
 
-function executionPriceFor(quote: Quote, side: OrderSide) {
+function referencePriceFor(quote: Quote, side: OrderSide) {
   return side === "buy" ? quote.askPrice ?? quote.price : quote.bidPrice ?? quote.price;
-}
-
-function canExecuteAtQuote(quote: Quote) {
-  return quote.marketState === "open" && !quote.isStale;
 }
 
 export async function placeOrder(input: PlaceOrderInput) {
@@ -90,17 +90,34 @@ export async function placeOrder(input: PlaceOrderInput) {
   if (!instrument?.isTradable) {
     throw new TradingError("NOT_TRADABLE", "That investment is not available for simulated trading.");
   }
-  const executionPrice = executionPriceFor(quote, input.side);
+  const referencePrice = referencePriceFor(quote, input.side);
   const allowFractional = input.allowFractional && asset.fractionable;
 
   return db.transaction(async (tx) => {
+    const [game] = await tx
+      .select({ id: games.id, status: games.status, startsAt: games.startsAt, endsAt: games.endsAt })
+      .from(games)
+      .where(eq(games.id, input.gameId))
+      .for("share")
+      .limit(1);
+    const now = new Date();
+    if (!game || game.status === "archived" || now >= game.endsAt) {
+      throw new TradingError("SEASON_ENDED", "This season has ended, so it is no longer accepting orders.");
+    }
+    if (game.status !== "active") {
+      throw new TradingError("SEASON_PAUSED", "Trading is paused for this season.");
+    }
+    if (now < game.startsAt) {
+      throw new TradingError("SEASON_NOT_STARTED", "Trading will be available when this season begins.");
+    }
+
     const [portfolio] = await tx
       .select()
       .from(portfolios)
       .where(eq(portfolios.id, input.portfolioId))
       .for("update")
       .limit(1);
-    if (!portfolio || portfolio.studentId !== input.studentId || portfolio.gameId !== input.gameId) {
+    if (!portfolio || portfolio.studentId !== input.studentId || portfolio.gameId !== input.gameId || portfolio.status !== "active") {
       throw new TradingError("FORBIDDEN", "This portfolio is not available.");
     }
 
@@ -127,7 +144,7 @@ export async function placeOrder(input: PlaceOrderInput) {
       orderType: input.orderType,
       quantity: input.quantity,
       limitPrice: input.limitPrice,
-      quote: executionPrice,
+      quote: referencePrice,
       cashAvailable: availableCash,
       positionQuantity: availablePosition,
       allowFractional,
@@ -160,13 +177,14 @@ export async function placeOrder(input: PlaceOrderInput) {
       }
     }
 
-    const shouldFill =
-      canExecuteAtQuote(quote) &&
-      (input.orderType === "market" ||
-        (input.side === "buy" && executionPrice <= Number(input.limitPrice)) ||
-        (input.side === "sell" && executionPrice >= Number(input.limitPrice)));
-    const status = shouldFill ? "filled" : quote.marketState === "open" ? "open" : "queued";
-    const reservedAmount = !shouldFill && input.side === "buy" ? validation.estimatedTotal : new Decimal(0);
+    const execution = evaluateOrderExecution({
+      side: input.side,
+      orderType: input.orderType,
+      limitPrice: input.limitPrice,
+      quote,
+    });
+    const status = execution.shouldFill ? "filled" : quote.marketState === "open" && !quote.isStale ? "open" : "queued";
+    const reservedAmount = !execution.shouldFill && input.side === "buy" ? validation.estimatedTotal : new Decimal(0);
 
     const [order] = await tx
       .insert(orders)
@@ -176,12 +194,14 @@ export async function placeOrder(input: PlaceOrderInput) {
         clientOrderId: input.clientOrderId,
         side: input.side,
         orderType: input.orderType,
+        timeInForce: "gtc",
         quantity: input.quantity,
         limitPrice: input.orderType === "limit" ? validation.estimatedPrice.toFixed(6) : null,
         status,
-        filledQuantity: shouldFill ? input.quantity : "0",
+        filledQuantity: execution.shouldFill ? input.quantity : "0",
         reservedAmount: reservedAmount.toFixed(4),
         submittedQuote: quote.price.toFixed(6),
+        expiresAt: game.endsAt,
       })
       .returning();
 
@@ -195,7 +215,7 @@ export async function placeOrder(input: PlaceOrderInput) {
       tags: [symbol, input.side],
     });
 
-    if (!shouldFill) {
+    if (!execution.shouldFill) {
       if (reservedAmount.gt(0)) {
         await tx
           .update(portfolios)
@@ -207,6 +227,7 @@ export async function placeOrder(input: PlaceOrderInput) {
           .where(eq(portfolios.id, portfolio.id));
       }
     } else {
+      const executionPrice = execution.executionPrice;
       const quantity = new Decimal(input.quantity);
       const amount = quantity.times(executionPrice).toDecimalPlaces(4);
       const nextCash = input.side === "buy"
@@ -290,6 +311,22 @@ export async function placeOrder(input: PlaceOrderInput) {
         referenceId: fill.id,
         memo: `${input.side === "buy" ? "Bought" : "Sold"} ${input.quantity} ${symbol} at $${executionPrice.toFixed(2)}`,
       });
+      await tx.insert(auditEvents).values({
+        actorType: "system",
+        action: "order_filled",
+        targetType: "order",
+        targetId: order.id,
+        gameId: input.gameId,
+        metadata: {
+          symbol,
+          side: input.side,
+          orderType: input.orderType,
+          quantity: input.quantity,
+          executionPrice: executionPrice.toFixed(6),
+          quoteAsOf: quote.asOf,
+          providerEventId: quote.providerEventId,
+        },
+      });
     }
 
     await tx.insert(auditEvents).values({
@@ -329,87 +366,337 @@ export async function cancelOrder(input: { orderId: string; studentId: string; p
   });
 }
 
-export async function processEligibleOrdersForPortfolio(portfolioId: string) {
-  const pending = await db
-    .select({
-      id: orders.id,
-      symbol: instruments.symbol,
-    })
+const pendingOrderStatuses = ["queued", "open", "partially_filled"];
+
+type PendingOrderCandidate = {
+  id: string;
+  portfolioId: string;
+  symbol: string;
+};
+
+type ProcessingOutcome = "filled" | "opened" | "rejected" | "expired" | "waiting" | "skipped";
+
+export type OrderProcessingSummary = {
+  ordersChecked: number;
+  quotesRequested: number;
+  filled: number;
+  opened: number;
+  rejected: number;
+  expired: number;
+  waiting: number;
+  skipped: number;
+};
+
+function createProcessingSummary(): OrderProcessingSummary {
+  return {
+    ordersChecked: 0,
+    quotesRequested: 0,
+    filled: 0,
+    opened: 0,
+    rejected: 0,
+    expired: 0,
+    waiting: 0,
+    skipped: 0,
+  };
+}
+
+async function getPendingOrderCandidates(portfolioId?: string) {
+  return db
+    .select({ id: orders.id, portfolioId: orders.portfolioId, symbol: instruments.symbol })
     .from(orders)
     .innerJoin(instruments, eq(orders.instrumentId, instruments.id))
-    .where(and(eq(orders.portfolioId, portfolioId), inArray(orders.status, ["queued", "open"])))
-    .limit(20);
+    .where(
+      portfolioId
+        ? and(eq(orders.portfolioId, portfolioId), inArray(orders.status, pendingOrderStatuses))
+        : inArray(orders.status, pendingOrderStatuses),
+    )
+    .orderBy(asc(orders.updatedAt), asc(orders.submittedAt))
+    .limit(250);
+}
 
-  const liveQuotes = await marketDataProvider.getQuotes(pending.map((order) => order.symbol));
-  const quotesBySymbol = new Map(liveQuotes.map((quote) => [quote.symbol, quote]));
+async function processPendingOrder(
+  pendingOrder: PendingOrderCandidate,
+  quote: Quote | undefined,
+  now: Date,
+): Promise<ProcessingOutcome> {
+  return db.transaction(async (tx) => {
+    const [order] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.id, pendingOrder.id))
+      .for("update")
+      .limit(1);
+    if (!order || !pendingOrderStatuses.includes(order.status)) return "skipped";
 
-  for (const pendingOrder of pending) {
-    const quote = quotesBySymbol.get(pendingOrder.symbol);
-    if (!quote || !canExecuteAtQuote(quote)) continue;
+    const [portfolio] = await tx
+      .select()
+      .from(portfolios)
+      .where(eq(portfolios.id, order.portfolioId))
+      .for("update")
+      .limit(1);
+    if (!portfolio) return "skipped";
 
-    await db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(eq(orders.id, pendingOrder.id)).for("update").limit(1);
-      if (!order || !["queued", "open"].includes(order.status)) return;
-      const executionPrice = executionPriceFor(quote, order.side as OrderSide);
-      const limitReached =
-        order.orderType === "market" ||
-        (order.side === "buy" && executionPrice <= Number(order.limitPrice)) ||
-        (order.side === "sell" && executionPrice >= Number(order.limitPrice));
-      if (!limitReached) {
-        if (order.status === "queued") await tx.update(orders).set({ status: "open", updatedAt: new Date() }).where(eq(orders.id, order.id));
-        return;
-      }
+    const [game] = await tx
+      .select({ id: games.id, status: games.status, startsAt: games.startsAt, endsAt: games.endsAt })
+      .from(games)
+      .where(eq(games.id, portfolio.gameId))
+      .limit(1);
+    const [student] = await tx
+      .select({ status: students.status })
+      .from(students)
+      .where(eq(students.id, portfolio.studentId))
+      .limit(1);
+    if (!game || !student) return "skipped";
 
-      const [portfolio] = await tx.select().from(portfolios).where(eq(portfolios.id, order.portfolioId)).for("update").limit(1);
-      if (!portfolio) return;
-      const [position] = await tx.select().from(positions).where(and(eq(positions.portfolioId, portfolio.id), eq(positions.instrumentId, order.instrumentId))).limit(1);
-      const quantity = new Decimal(order.quantity).minus(order.filledQuantity);
-      const amount = quantity.times(executionPrice).toDecimalPlaces(4);
+    const hasExpired = game.status === "archived" || now >= game.endsAt || (order.expiresAt !== null && now >= order.expiresAt);
+    if (hasExpired) {
       const released = new Decimal(order.reservedAmount);
       const nextReserved = Decimal.max(0, new Decimal(portfolio.reservedCash).minus(released));
+      await tx
+        .update(orders)
+        .set({
+          status: "expired",
+          rejectionCode: "SEASON_ENDED",
+          rejectionMessage: "The season ended before this order could fill.",
+          reservedAmount: "0",
+          updatedAt: now,
+        })
+        .where(eq(orders.id, order.id));
+      if (released.gt(0)) {
+        await tx
+          .update(portfolios)
+          .set({ reservedCash: nextReserved.toFixed(4), version: portfolio.version + 1, updatedAt: now })
+          .where(eq(portfolios.id, portfolio.id));
+      }
+      await tx.insert(auditEvents).values({
+        actorType: "system",
+        action: "order_expired",
+        targetType: "order",
+        targetId: order.id,
+        gameId: game.id,
+        metadata: { symbol: pendingOrder.symbol, reason: "season_ended" },
+      });
+      return "expired";
+    }
 
-      const cashAvailableAtFill = new Decimal(portfolio.cashBalance).minus(nextReserved);
-      if (order.side === "buy" && amount.gt(cashAvailableAtFill)) {
-        await tx.update(orders).set({ status: "rejected", rejectionCode: "INSUFFICIENT_CASH_AT_FILL", rejectionMessage: "The opening price exceeded available cash.", reservedAmount: "0", updatedAt: new Date() }).where(eq(orders.id, order.id));
-        await tx.update(portfolios).set({ reservedCash: nextReserved.toFixed(4), version: portfolio.version + 1, updatedAt: new Date() }).where(eq(portfolios.id, portfolio.id));
-        return;
-      }
-      if (order.side === "sell" && quantity.gt(position?.quantity ?? 0)) {
-        await tx.update(orders).set({ status: "rejected", rejectionCode: "INSUFFICIENT_SHARES_AT_FILL", rejectionMessage: "The shares were no longer available.", updatedAt: new Date() }).where(eq(orders.id, order.id));
-        return;
-      }
+    if (
+      game.status !== "active" ||
+      now < game.startsAt ||
+      portfolio.status !== "active" ||
+      student.status !== "active" ||
+      !quote
+    ) {
+      await tx.update(orders).set({ updatedAt: now }).where(eq(orders.id, order.id));
+      return "waiting";
+    }
 
-      const nextCash = order.side === "buy" ? new Decimal(portfolio.cashBalance).minus(amount) : new Decimal(portfolio.cashBalance).plus(amount);
-      let realized = new Decimal(0);
-      if (order.side === "buy") {
-        const next = applyBuyToPosition({ currentQuantity: position?.quantity ?? 0, currentAverageCost: position?.averageCost ?? 0, fillQuantity: quantity, fillPrice: executionPrice });
-        await tx.insert(positions).values({ portfolioId: portfolio.id, instrumentId: order.instrumentId, quantity: next.quantity.toFixed(8), averageCost: next.averageCost.toFixed(6) }).onConflictDoUpdate({ target: [positions.portfolioId, positions.instrumentId], set: { quantity: next.quantity.toFixed(8), averageCost: next.averageCost.toFixed(6), updatedAt: new Date() } });
-      } else if (position) {
-        const next = applySellToPosition({ currentQuantity: position.quantity, currentAverageCost: position.averageCost, fillQuantity: quantity, fillPrice: executionPrice });
-        realized = next.realizedGain;
-        await tx.update(positions).set({ quantity: next.quantity.toFixed(8), realizedGain: new Decimal(position.realizedGain).plus(realized).toFixed(4), updatedAt: new Date() }).where(and(eq(positions.portfolioId, portfolio.id), eq(positions.instrumentId, order.instrumentId)));
-      }
-
-      await tx.update(portfolios).set({ cashBalance: nextCash.toFixed(4), reservedCash: nextReserved.toFixed(4), realizedGain: new Decimal(portfolio.realizedGain).plus(realized).toFixed(4), version: portfolio.version + 1, updatedAt: new Date() }).where(eq(portfolios.id, portfolio.id));
-      await tx.update(orders).set({ status: "filled", filledQuantity: order.quantity, reservedAmount: "0", updatedAt: new Date() }).where(eq(orders.id, order.id));
-      const [fill] = await tx.insert(fills).values({ orderId: order.id, portfolioId: portfolio.id, instrumentId: order.instrumentId, quantity: quantity.toFixed(8), price: executionPrice.toFixed(6), providerEventId: `${quote.providerEventId}:${order.id}` }).onConflictDoNothing().returning();
-      if (fill) {
-        await tx.insert(cashLedger).values({ portfolioId: portfolio.id, eventType: "trade_settlement", amount: (order.side === "buy" ? amount.negated() : amount).toFixed(4), runningBalance: nextCash.toFixed(4), referenceType: "fill", referenceId: fill.id, memo: `${order.side === "buy" ? "Bought" : "Sold"} ${quantity.toFixed()} ${pendingOrder.symbol} at $${executionPrice.toFixed(2)}` });
-      }
+    const execution = evaluateOrderExecution({
+      side: order.side as OrderSide,
+      orderType: order.orderType as OrderType,
+      limitPrice: order.limitPrice,
+      quote,
     });
+    if (!execution.shouldFill) {
+      const shouldOpen = quote.marketState === "open" && !quote.isStale && order.status === "queued";
+      await tx
+        .update(orders)
+        .set({ status: shouldOpen ? "open" : order.status, updatedAt: now })
+        .where(eq(orders.id, order.id));
+      if (shouldOpen) return "opened";
+      return "waiting";
+    }
+
+    const executionPrice = execution.executionPrice;
+    const [position] = await tx
+      .select()
+      .from(positions)
+      .where(and(eq(positions.portfolioId, portfolio.id), eq(positions.instrumentId, order.instrumentId)))
+      .limit(1);
+    const quantity = new Decimal(order.quantity).minus(order.filledQuantity);
+    const amount = quantity.times(executionPrice).toDecimalPlaces(4);
+    const released = new Decimal(order.reservedAmount);
+    const nextReserved = Decimal.max(0, new Decimal(portfolio.reservedCash).minus(released));
+    const cashAvailableAtFill = new Decimal(portfolio.cashBalance).minus(nextReserved);
+
+    if (order.side === "buy" && amount.gt(cashAvailableAtFill)) {
+      await tx
+        .update(orders)
+        .set({
+          status: "rejected",
+          rejectionCode: "INSUFFICIENT_CASH_AT_FILL",
+          rejectionMessage: "The fill price exceeded the available cash.",
+          reservedAmount: "0",
+          updatedAt: now,
+        })
+        .where(eq(orders.id, order.id));
+      await tx
+        .update(portfolios)
+        .set({ reservedCash: nextReserved.toFixed(4), version: portfolio.version + 1, updatedAt: now })
+        .where(eq(portfolios.id, portfolio.id));
+      await tx.insert(auditEvents).values({
+        actorType: "system",
+        action: "order_rejected",
+        targetType: "order",
+        targetId: order.id,
+        gameId: game.id,
+        metadata: { symbol: pendingOrder.symbol, reason: "insufficient_cash_at_fill" },
+      });
+      return "rejected";
+    }
+    if (order.side === "sell" && quantity.gt(position?.quantity ?? 0)) {
+      await tx
+        .update(orders)
+        .set({
+          status: "rejected",
+          rejectionCode: "INSUFFICIENT_SHARES_AT_FILL",
+          rejectionMessage: "The shares were no longer available.",
+          reservedAmount: "0",
+          updatedAt: now,
+        })
+        .where(eq(orders.id, order.id));
+      await tx.insert(auditEvents).values({
+        actorType: "system",
+        action: "order_rejected",
+        targetType: "order",
+        targetId: order.id,
+        gameId: game.id,
+        metadata: { symbol: pendingOrder.symbol, reason: "insufficient_shares_at_fill" },
+      });
+      return "rejected";
+    }
+
+    const nextCash = order.side === "buy"
+      ? new Decimal(portfolio.cashBalance).minus(amount)
+      : new Decimal(portfolio.cashBalance).plus(amount);
+    let realized = new Decimal(0);
+    if (order.side === "buy") {
+      const next = applyBuyToPosition({
+        currentQuantity: position?.quantity ?? 0,
+        currentAverageCost: position?.averageCost ?? 0,
+        fillQuantity: quantity,
+        fillPrice: executionPrice,
+      });
+      await tx
+        .insert(positions)
+        .values({
+          portfolioId: portfolio.id,
+          instrumentId: order.instrumentId,
+          quantity: next.quantity.toFixed(8),
+          averageCost: next.averageCost.toFixed(6),
+        })
+        .onConflictDoUpdate({
+          target: [positions.portfolioId, positions.instrumentId],
+          set: {
+            quantity: next.quantity.toFixed(8),
+            averageCost: next.averageCost.toFixed(6),
+            updatedAt: now,
+          },
+        });
+    } else if (position) {
+      const next = applySellToPosition({
+        currentQuantity: position.quantity,
+        currentAverageCost: position.averageCost,
+        fillQuantity: quantity,
+        fillPrice: executionPrice,
+      });
+      realized = next.realizedGain;
+      await tx
+        .update(positions)
+        .set({
+          quantity: next.quantity.toFixed(8),
+          realizedGain: new Decimal(position.realizedGain).plus(realized).toFixed(4),
+          updatedAt: now,
+        })
+        .where(and(eq(positions.portfolioId, portfolio.id), eq(positions.instrumentId, order.instrumentId)));
+    }
+
+    await tx
+      .update(portfolios)
+      .set({
+        cashBalance: nextCash.toFixed(4),
+        reservedCash: nextReserved.toFixed(4),
+        realizedGain: new Decimal(portfolio.realizedGain).plus(realized).toFixed(4),
+        version: portfolio.version + 1,
+        updatedAt: now,
+      })
+      .where(eq(portfolios.id, portfolio.id));
+    await tx
+      .update(orders)
+      .set({ status: "filled", filledQuantity: order.quantity, reservedAmount: "0", updatedAt: now })
+      .where(eq(orders.id, order.id));
+    const [fill] = await tx
+      .insert(fills)
+      .values({
+        orderId: order.id,
+        portfolioId: portfolio.id,
+        instrumentId: order.instrumentId,
+        quantity: quantity.toFixed(8),
+        price: executionPrice.toFixed(6),
+        providerEventId: `${quote.providerEventId}:${order.id}`,
+        executedAt: now,
+      })
+      .returning();
+    await tx.insert(cashLedger).values({
+      portfolioId: portfolio.id,
+      eventType: "trade_settlement",
+      amount: (order.side === "buy" ? amount.negated() : amount).toFixed(4),
+      runningBalance: nextCash.toFixed(4),
+      referenceType: "fill",
+      referenceId: fill.id,
+      memo: `${order.side === "buy" ? "Bought" : "Sold"} ${quantity.toFixed()} ${pendingOrder.symbol} at $${executionPrice.toFixed(2)}`,
+      occurredAt: now,
+    });
+    await tx.insert(auditEvents).values({
+      actorType: "system",
+      action: "order_filled",
+      targetType: "order",
+      targetId: order.id,
+      gameId: game.id,
+      metadata: {
+        symbol: pendingOrder.symbol,
+        side: order.side,
+        orderType: order.orderType,
+        quantity: quantity.toFixed(8),
+        executionPrice: executionPrice.toFixed(6),
+        quoteAsOf: quote.asOf,
+        providerEventId: quote.providerEventId,
+      },
+    });
+    return "filled";
+  });
+}
+
+async function processCandidates(candidates: PendingOrderCandidate[]) {
+  const summary = createProcessingSummary();
+  summary.ordersChecked = candidates.length;
+  if (!candidates.length) return summary;
+
+  const uniqueSymbols = [...new Set(candidates.map((order) => order.symbol))];
+  let quotesBySymbol = new Map<string, Quote>();
+  if (candidates.length && uniqueSymbols.length) {
+    const sessionOpen = candidates.length > 0 && getUsEquitySession().state === "open";
+    if (sessionOpen) {
+      const liveQuotes = await marketDataProvider.getQuotes(uniqueSymbols);
+      quotesBySymbol = new Map(liveQuotes.map((quote) => [quote.symbol, quote]));
+      summary.quotesRequested = uniqueSymbols.length;
+    }
   }
+
+  for (const candidate of candidates) {
+    const outcome = await processPendingOrder(candidate, quotesBySymbol.get(candidate.symbol), new Date());
+    summary[outcome] += 1;
+  }
+  return summary;
+}
+
+export async function processEligibleOrdersForPortfolio(portfolioId: string) {
+  return processCandidates(await getPendingOrderCandidates(portfolioId));
 }
 
 export async function processAllEligibleOrders() {
-  const pendingPortfolios = await db
-    .selectDistinct({ portfolioId: orders.portfolioId })
-    .from(orders)
-    .where(inArray(orders.status, ["queued", "open"]))
-    .limit(250);
-
-  for (const { portfolioId } of pendingPortfolios) {
-    await processEligibleOrdersForPortfolio(portfolioId);
-  }
-
-  return { portfoliosChecked: pendingPortfolios.length };
+  const candidates = await getPendingOrderCandidates();
+  return {
+    portfoliosChecked: new Set(candidates.map((order) => order.portfolioId)).size,
+    ...(await processCandidates(candidates)),
+  };
 }

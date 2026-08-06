@@ -50,6 +50,6 @@ export function TradeForm({
     </div>
     {marketState !== "open" ? <div className="info-box"><AlertCircle size={16} style={{ display: "inline", marginRight: 6 }} />The regular session is {marketState}. This order will queue and be eligible at the next open.</div> : null}
     <button className="button-primary" type="submit" disabled={pending}>{pending ? <LoaderCircle size={18} className="animate-spin" /> : <ArrowRight size={18} />}{pending ? "Checking order…" : `Review and submit ${side}`}</button>
-    <p className="muted" style={{ fontSize: ".7rem", lineHeight: 1.5, margin: 0 }}>Simulated order. No real security is purchased. A fill price can differ from the last displayed price.</p>
+    <p className="muted" style={{ fontSize: ".7rem", lineHeight: 1.5, margin: 0 }}>Simulated order. No real security is purchased. Waiting orders are checked automatically during regular market hours and remain active until filled, canceled, or the season ends. A fill price can differ from the last displayed price.</p>
   </form>;
 }

@@ -250,7 +250,7 @@ export const orders = pgTable(
     clientOrderId: text("client_order_id").notNull(),
     side: text("side").notNull(),
     orderType: text("order_type").notNull(),
-    timeInForce: text("time_in_force").default("day").notNull(),
+    timeInForce: text("time_in_force").default("gtc").notNull(),
     quantity: numeric("quantity", { precision: 22, scale: 8 }).notNull(),
     limitPrice: numeric("limit_price", { precision: 18, scale: 6 }),
     status: text("status").default("pending").notNull(),

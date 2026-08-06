@@ -11,7 +11,9 @@ The server-only `alpaca-basic-iex-v1` adapter:
 - preserves last trade, bid, ask, previous close, source timestamp, feed, and staleness;
 - marks portfolios at the latest trade and simulates buys at the ask and sells at the bid when available;
 - coalesces quote reads for three seconds and retries transient upstream failures;
+- batches automatic waiting-order quote checks in groups of no more than 25 symbols;
 - blocks fills when the regular session is closed or an open-session quote is more than two minutes old;
+- checks waiting market and limit orders automatically about once per minute during the regular session;
 - never substitutes synthetic prices and never sends a brokerage order.
 
 Alpaca credentials stay in Vercel environment variables and `.env.local`; they must never be committed or exposed with a `NEXT_PUBLIC_` prefix. The current use is personal only. Before the URL is shared, confirm an upgraded agreement or switch to a provider whose contract permits the intended external display and simulated-trading use.

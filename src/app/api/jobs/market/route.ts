@@ -28,15 +28,29 @@ async function runMarketJobs() {
   };
 }
 
-export async function POST(request: Request) {
+async function handleMarketJob(request: Request) {
   if (!isAuthorizedJobRequest(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   try {
-    return Response.json({ status: "ok", ...(await runMarketJobs()) });
+    const result = await runMarketJobs();
+    console.info("market_job_completed", { ...result, durationMs: Date.now() - startedAt });
+    return Response.json(
+      { status: "ok", ...result, durationMs: Date.now() - startedAt },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
-    console.error("Market job failed", error);
-    return Response.json({ status: "error" }, { status: 500 });
+    console.error("market_job_failed", { error, durationMs: Date.now() - startedAt });
+    return Response.json(
+      { status: "error", completedAt: new Date().toISOString() },
+      { status: 500, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }
+
+// Vercel Cron invokes production routes with GET. POST remains available for
+// authenticated operator retries and local smoke tests.
+export const GET = handleMarketJob;
+export const POST = handleMarketJob;

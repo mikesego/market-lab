@@ -27,11 +27,13 @@ test("learning outcomes stack without overlap on a phone", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test("health is public but market jobs reject anonymous requests", async ({ request }) => {
+test("health is public but market jobs reject anonymous requests for every supported method", async ({ request }) => {
   const health = await request.get("/api/health");
   expect(health.ok()).toBe(true);
   await expect(health.json()).resolves.toMatchObject({ status: "ok", database: "ok" });
 
+  const scheduledMarketJob = await request.get("/api/jobs/market");
+  expect(scheduledMarketJob.status()).toBe(401);
   const marketJob = await request.post("/api/jobs/market");
   expect(marketJob.status()).toBe(401);
 });

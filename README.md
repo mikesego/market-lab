@@ -15,8 +15,8 @@ This free personal-data arrangement must not be treated as permission for public
 - Public site: product explanation, educator information, privacy, terms, accessibility, service status, and student join.
 - Student app: dashboard, full-universe stock and ETF search, company/fund pages, live and recorded portfolio charts, watchlist context, market/limit tickets, queued/open/filled orders, cancellation, holdings, returns, learning labs, decision journal, achievements, and financial leaderboard.
 - Teacher workspace: Clerk-authenticated season creation, configurable dates/guardrails, pseudonymous student accounts, development-season controls, and an extensive seeded classroom console.
-- Trading/accounting engine: market calendar, holidays and early closes, cash reservation, concurrency locks, positions, average cost, realized gains, fills, immutable cash ledger, splits, cash dividends, and audit events.
-- Operations: health API, authenticated market-job endpoint, provider readiness signal, and restricted system console.
+- Trading/accounting engine: immediate eligible fills, good-until-canceled market and limit orders, automatic minute-level matching during U.S. sessions, market calendar, holidays and early closes, cash reservation, concurrency locks, positions, average cost, realized gains, fills, immutable cash ledger, splits, cash dividends, and audit events.
+- Operations: health API, authenticated scheduled market-job endpoint, provider readiness signal, and restricted system console.
 
 The full approved product and engineering specification is in [PRODUCT_SPEC.md](PRODUCT_SPEC.md).
 
@@ -79,7 +79,7 @@ npm run db:reset-demo   # erase and rebuild only OAK-724 demo data
 
 ## Protected market jobs
 
-Queued orders and due corporate actions are processed by:
+Queued/open orders and due corporate actions are processed by the protected route below. Vercel invokes its `GET` handler every minute from 13:00–21:59 UTC on weekdays, a daylight-saving-safe window covering the complete 9:30 a.m.–4:00 p.m. America/New_York regular session. The route checks the official application calendar and fresh quote state before any fill, so premarket, after-hours, weekends, holidays, and early-close periods do not execute orders.
 
 ```bash
 curl -X POST \
@@ -87,7 +87,7 @@ curl -X POST \
   https://stocks.mikesego.com/api/jobs/market
 ```
 
-Attach an external scheduler or a Vercel Cron plan with a frequency appropriate to the selected quote license. The endpoint uses transactional row locks and idempotent provider event IDs, so overlapping invocations do not double-fill an order or double-apply a corporate action.
+Market orders submitted during an open session fill immediately when the quote is fresh. Otherwise they wait for the first eligible scheduled check. Limit orders remain good until canceled or the season ends and fill only when the current executable price satisfies the limit. The endpoint uses transactional row locks, state guards, and idempotent provider event IDs, so overlapping invocations do not double-fill an order or double-apply a corporate action.
 
 ## Data model and safety
 

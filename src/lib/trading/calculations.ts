@@ -18,6 +18,52 @@ export type OrderValidationResult =
   | { ok: true; estimatedPrice: Decimal; estimatedTotal: Decimal }
   | { ok: false; code: string; message: string };
 
+export type ExecutionQuote = {
+  price: number;
+  bidPrice: number | null;
+  askPrice: number | null;
+  marketState: "open" | "closed" | "pre" | "after";
+  isStale: boolean;
+};
+
+export type OrderExecutionDecision =
+  | { shouldFill: false; executionPrice: null }
+  | { shouldFill: true; executionPrice: Decimal };
+
+export function evaluateOrderExecution(input: {
+  side: OrderSide;
+  orderType: OrderType;
+  limitPrice?: Decimal.Value | null;
+  quote: ExecutionQuote;
+}): OrderExecutionDecision {
+  if (input.quote.marketState !== "open" || input.quote.isStale) {
+    return { shouldFill: false, executionPrice: null };
+  }
+
+  const rawPrice = input.side === "buy"
+    ? input.quote.askPrice ?? input.quote.price
+    : input.quote.bidPrice ?? input.quote.price;
+  if (!Number.isFinite(rawPrice) || rawPrice <= 0) {
+    return { shouldFill: false, executionPrice: null };
+  }
+
+  const executionPrice = new Decimal(rawPrice).toDecimalPlaces(6);
+  if (input.orderType === "market") return { shouldFill: true, executionPrice };
+
+  let limitPrice: Decimal;
+  try {
+    limitPrice = new Decimal(input.limitPrice ?? 0);
+  } catch {
+    return { shouldFill: false, executionPrice: null };
+  }
+  const limitReached = input.side === "buy"
+    ? executionPrice.lte(limitPrice)
+    : executionPrice.gte(limitPrice);
+  return limitReached
+    ? { shouldFill: true, executionPrice }
+    : { shouldFill: false, executionPrice: null };
+}
+
 export function validateOrder(input: OrderValidationInput): OrderValidationResult {
   let quantity: Decimal;
   let quote: Decimal;

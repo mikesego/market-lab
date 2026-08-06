@@ -3,9 +3,37 @@ import { describe, expect, it } from "vitest";
 import {
   applyBuyToPosition,
   applySellToPosition,
+  evaluateOrderExecution,
   totalReturnPercent,
   validateOrder,
 } from "../../src/lib/trading/calculations";
+
+describe("order execution", () => {
+  const openQuote = {
+    price: 100,
+    bidPrice: 99.9,
+    askPrice: 100.1,
+    marketState: "open" as const,
+    isStale: false,
+  };
+
+  it("fills market orders at the executable side of a fresh open-session quote", () => {
+    expect(evaluateOrderExecution({ side: "buy", orderType: "market", quote: openQuote }).executionPrice?.toNumber()).toBe(100.1);
+    expect(evaluateOrderExecution({ side: "sell", orderType: "market", quote: openQuote }).executionPrice?.toNumber()).toBe(99.9);
+  });
+
+  it("keeps market orders waiting outside the regular session or on a stale quote", () => {
+    expect(evaluateOrderExecution({ side: "buy", orderType: "market", quote: { ...openQuote, marketState: "after" } })).toEqual({ shouldFill: false, executionPrice: null });
+    expect(evaluateOrderExecution({ side: "buy", orderType: "market", quote: { ...openQuote, isStale: true } })).toEqual({ shouldFill: false, executionPrice: null });
+  });
+
+  it("fills limit orders only when the executable quote reaches the limit", () => {
+    expect(evaluateOrderExecution({ side: "buy", orderType: "limit", limitPrice: 100.2, quote: openQuote }).shouldFill).toBe(true);
+    expect(evaluateOrderExecution({ side: "buy", orderType: "limit", limitPrice: 100, quote: openQuote }).shouldFill).toBe(false);
+    expect(evaluateOrderExecution({ side: "sell", orderType: "limit", limitPrice: 99.8, quote: openQuote }).shouldFill).toBe(true);
+    expect(evaluateOrderExecution({ side: "sell", orderType: "limit", limitPrice: 100, quote: openQuote }).shouldFill).toBe(false);
+  });
+});
 
 describe("order validation", () => {
   it("accepts a fully funded market buy", () => {

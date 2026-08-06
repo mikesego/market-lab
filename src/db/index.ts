@@ -15,9 +15,16 @@ function createPool() {
   if (!connectionString) {
     throw new Error("DATABASE_URL is required for database access.");
   }
+  // pg currently treats sslmode=require as certificate-verifying but will
+  // weaken that behavior in its next major release. Preserve today's strict
+  // verification explicitly and keep the scheduled-job logs warning-free.
+  const strictConnectionString = connectionString.replace(
+    /([?&])sslmode=(?:prefer|require|verify-ca)(?=&|$)/,
+    "$1sslmode=verify-full",
+  );
 
   const pool = new Pool({
-    connectionString,
+    connectionString: strictConnectionString,
     max: 8,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
