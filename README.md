@@ -6,14 +6,14 @@ The official competition is intentionally simple: the portfolio with the greates
 
 ## Current deployment mode
 
-The active provider is `alpaca-basic-iex-v1`. It retrieves real-time IEX snapshots and adjusted daily bars through Alpaca Basic for Mike’s personal demonstration. Every balance and order remains simulated; the application never sends an order to Alpaca or any brokerage. There is no synthetic-price fallback: if Alpaca is unavailable or an open-session quote is stale, new fills stop safely.
+The active provider is `alpaca-basic-iex-v1`. It retrieves Alpaca’s active U.S. equity reference universe, real-time IEX snapshots, and adjusted daily bars for Mike’s personal demonstration. Discovery begins with a small educationally curated featured list, while authenticated search, research pages, and simulated trading resolve supported stocks and ETFs on demand. Every balance and order remains simulated; the application never sends an order to Alpaca or any brokerage. There is no synthetic-price fallback: if Alpaca is unavailable or an open-session quote is stale, new fills stop safely.
 
 This free personal-data arrangement must not be treated as permission for public, classroom, or multi-user display. Before sharing the application, replace or upgrade the provider agreement for the intended audience and complete the launch gates in [docs/PRIVACY_LAUNCH_CHECKLIST.md](docs/PRIVACY_LAUNCH_CHECKLIST.md).
 
 ## Product areas
 
 - Public site: product explanation, educator information, privacy, terms, accessibility, service status, and student join.
-- Student app: dashboard, discovery, company/fund pages, charts, watchlist context, market/limit tickets, queued/open/filled orders, cancellation, holdings, returns, learning labs, decision journal, achievements, and financial leaderboard.
+- Student app: dashboard, full-universe stock and ETF search, company/fund pages, live and recorded portfolio charts, watchlist context, market/limit tickets, queued/open/filled orders, cancellation, holdings, returns, learning labs, decision journal, achievements, and financial leaderboard.
 - Teacher workspace: Clerk-authenticated season creation, configurable dates/guardrails, pseudonymous student accounts, development-season controls, and an extensive seeded classroom console.
 - Trading/accounting engine: market calendar, holidays and early closes, cash reservation, concurrency locks, positions, average cost, realized gains, fills, immutable cash ledger, splits, cash dividends, and audit events.
 - Operations: health API, authenticated market-job endpoint, provider readiness signal, and restricted system console.

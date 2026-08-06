@@ -14,6 +14,9 @@ import {
   portfolios,
   positions,
 } from "@/db/schema";
+import { syncAlpacaInstrument } from "@/lib/instruments/service";
+import { getAlpacaAsset } from "@/lib/market/alpaca-assets";
+import { isSupportedStockOrEtf } from "@/lib/market/asset-utils";
 import { marketDataProvider } from "@/lib/market/provider";
 import type { Quote } from "@/lib/market/types";
 import {
@@ -57,20 +60,38 @@ function canExecuteAtQuote(quote: Quote) {
 
 export async function placeOrder(input: PlaceOrderInput) {
   const symbol = input.symbol.toUpperCase();
-  const [instrument] = await db.select().from(instruments).where(eq(instruments.symbol, symbol)).limit(1);
-  if (!instrument || !instrument.isTradable) {
+  let asset;
+  try {
+    asset = await getAlpacaAsset(symbol);
+  } catch {
+    throw new TradingError("NOT_TRADABLE", "That investment is not available for simulated trading.");
+  }
+  if (!isSupportedStockOrEtf(asset)) {
     throw new TradingError("NOT_TRADABLE", "That investment is not available in this season.");
   }
+
+  const heldSymbols = await db
+    .select({ symbol: instruments.symbol, quantity: positions.quantity })
+    .from(positions)
+    .innerJoin(instruments, eq(positions.instrumentId, instruments.id))
+    .where(eq(positions.portfolioId, input.portfolioId));
   let liveQuotes: Quote[];
   try {
-    liveQuotes = await marketDataProvider.getQuotes();
+    liveQuotes = await marketDataProvider.getQuotes([
+      ...new Set([symbol, ...heldSymbols.filter((row) => new Decimal(row.quantity).gt(0)).map((row) => row.symbol)]),
+    ]);
   } catch {
     throw new TradingError("MARKET_DATA_UNAVAILABLE", "Live market data is temporarily unavailable. Your order was not submitted; try again shortly.");
   }
   const quotesBySymbol = new Map(liveQuotes.map((quote) => [quote.symbol, quote]));
   const quote = quotesBySymbol.get(symbol);
   if (!quote) throw new TradingError("QUOTE_UNAVAILABLE", "A live price is not available for that investment right now.");
+  const { instrument } = await syncAlpacaInstrument(asset, quote.price);
+  if (!instrument?.isTradable) {
+    throw new TradingError("NOT_TRADABLE", "That investment is not available for simulated trading.");
+  }
   const executionPrice = executionPriceFor(quote, input.side);
+  const allowFractional = input.allowFractional && asset.fractionable;
 
   return db.transaction(async (tx) => {
     const [portfolio] = await tx
@@ -109,7 +130,7 @@ export async function placeOrder(input: PlaceOrderInput) {
       quote: executionPrice,
       cashAvailable: availableCash,
       positionQuantity: availablePosition,
-      allowFractional: input.allowFractional,
+      allowFractional,
     });
     if (!validation.ok) throw new TradingError(validation.code, validation.message);
 
@@ -119,10 +140,15 @@ export async function placeOrder(input: PlaceOrderInput) {
         .from(positions)
         .innerJoin(instruments, eq(positions.instrumentId, instruments.id))
         .where(eq(positions.portfolioId, portfolio.id));
-      const holdingsValue = allPositions.reduce(
-        (total, row) => total.plus(new Decimal(row.quantity).times(quotesBySymbol.get(row.symbol)?.price ?? 0)),
-        new Decimal(0),
-      );
+      let holdingsValue = new Decimal(0);
+      for (const row of allPositions) {
+        if (new Decimal(row.quantity).isZero()) continue;
+        const holdingQuote = quotesBySymbol.get(row.symbol);
+        if (!holdingQuote) {
+          throw new TradingError("MARKET_DATA_UNAVAILABLE", `A live price for ${row.symbol} is unavailable. Your order was not submitted.`);
+        }
+        holdingsValue = holdingsValue.plus(new Decimal(row.quantity).times(holdingQuote.price));
+      }
       const equity = new Decimal(portfolio.cashBalance).plus(holdingsValue);
       const currentValue = new Decimal(position?.quantity ?? 0).times(quote.price);
       const newWeight = currentValue.plus(validation.estimatedTotal).div(equity).times(100);

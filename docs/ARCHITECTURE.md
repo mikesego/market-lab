@@ -35,6 +35,8 @@ Money and share math uses arbitrary-precision decimals. Database constraints and
 
 - `src/lib/market/provider.ts`: stable adapter boundary.
 - `src/lib/market/alpaca-provider.ts`: server-only Alpaca Basic REST client, bounded retry, and short quote cache.
+- `src/lib/market/alpaca-assets.ts`: authenticated reference-universe lookup and ranked stock/ETF search.
+- `src/lib/instruments/service.ts`: on-demand normalization and persistence for newly researched symbols.
 - `src/lib/market/alpaca-normalize.ts`: pure response normalization used by the adapter and contract tests.
 - `src/lib/market/calendar.ts`: U.S. equity session, weekend, holiday, and early-close logic.
 - `src/lib/trading/order-service.ts`: validation, reservation, placement, cancellation, and fill processing.
@@ -52,10 +54,11 @@ Money and share math uses arbitrary-precision decimals. Database constraints and
 - A corporate action has a unique provider event ID and one terminal processed state.
 - Learning evidence never enters the financial ranking formula.
 - Official rank is descending equity; ties share rank.
+- Portfolio charts use persisted equity checkpoints; presentation code never invents historical portfolio movement.
 
 ## Market-data boundary
 
-The current asynchronous adapter returns normalized quote and series shapes from Alpaca Basic’s IEX feed. Credentials are read only on the server. Portfolio valuation and discovery use the latest trade; simulated buys use the ask and sells use the bid when available. The order engine refuses stale open-session quotes and has no generated-price fallback.
+The current asynchronous adapter returns normalized reference assets, quote, and series shapes from Alpaca Basic’s U.S. equity and IEX endpoints. Credentials are read only on the server. Discovery shows a curated starting set and searches Alpaca’s active tradable universe on demand. Portfolio valuation uses the latest trade; simulated buys use the ask and sells use the bid when available. The order engine refuses stale open-session quotes and has no generated-price fallback.
 
 A future business provider implements the same async interface, so portfolio, classroom, and learning code do not need to change. Corporate-action ingestion, contractual cache/attribution rules, and conformance testing remain launch requirements.
 

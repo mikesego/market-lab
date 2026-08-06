@@ -97,6 +97,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .card-strong { border: 1px solid var(--ink); border-radius: 1rem; background: var(--paper); box-shadow: 5px 5px 0 var(--ink); }
 .field { display: grid; gap: .42rem; }
 .field label, .field-label { font-size: .78rem; font-weight: 800; letter-spacing: .02em; }
+.field-hint { color: var(--muted); font-size: .72rem; line-height: 1.45; }
 .input, .select, .textarea {
   width: 100%;
   border: 1px solid #a9b6ae;
@@ -213,9 +214,27 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .info-box { background: #e4f5f7; border: 1px solid #4e8994; color: #315d65; }
 
 .discover-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
-.stock-card { padding: 1.2rem; transition: transform .16s ease, box-shadow .16s ease; }
+.investment-search { display: flex; align-items: center; gap: .75rem; padding: .9rem 1rem; margin-bottom: .9rem; }
+.investment-search:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px var(--sky); }
+.investment-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 1rem; }
+.investment-search input::placeholder { color: #83918c; }
+.investment-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+.investment-filters .button-primary, .investment-filters .button-quiet { min-height: 2.45rem; padding: .55rem .85rem; }
+.search-summary { min-height: 2.6rem; padding: .8rem .1rem .65rem; color: var(--muted); font-size: .78rem; font-weight: 750; }
+.stock-card { min-width: 0; padding: 1.2rem; display: flex; flex-direction: column; transition: transform .16s ease, box-shadow .16s ease; }
 .stock-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .stock-card-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.stock-card h2 { margin: 1rem 0 .45rem; font-size: 1.08rem; line-height: 1.3; }
+.stock-meta { display: block; margin-top: .18rem; font-size: .67rem; }
+.stock-change { font-size: .72rem; font-weight: 800; white-space: nowrap; }
+.stock-description { margin: 0 0 1.1rem; font-size: .78rem; line-height: 1.55; }
+.stock-card-footer { display: flex; align-items: end; justify-content: space-between; gap: .8rem; margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--line); }
+.stock-card-footer strong { display: block; margin-top: .35rem; font-size: 1.2rem; }
+.stock-card-footer .status-pill { max-width: 47%; text-align: center; }
+.empty-search { padding: 2rem; text-align: center; }
+.empty-search p { max-width: 520px; margin: .6rem auto 0; line-height: 1.6; }
+.chart-note { margin: -.15rem 0 0; font-size: .72rem; line-height: 1.5; }
+.chart-note-dark { color: #b9cbc5; }
 .lesson-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
 .lesson-card { padding: 1.4rem; min-height: 230px; display: flex; flex-direction: column; justify-content: space-between; }
 .progress-track { height: .5rem; border-radius: 999px; background: #dfe2d7; overflow: hidden; }

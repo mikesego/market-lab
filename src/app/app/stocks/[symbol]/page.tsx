@@ -3,26 +3,39 @@ import { ArrowLeft, ArrowRight, Building2, CircleAlert, Layers3 } from "lucide-r
 import { notFound } from "next/navigation";
 
 import { StockChart } from "@/components/stock-chart";
-import { MARKET_CATALOG_BY_SYMBOL } from "@/lib/market/catalog";
+import { profileAlpacaAsset, syncAlpacaInstrument } from "@/lib/instruments/service";
+import { AssetUnavailableError, getAlpacaAsset } from "@/lib/market/alpaca-assets";
+import { isSupportedStockOrEtf } from "@/lib/market/asset-utils";
 import { marketDataProvider } from "@/lib/market/provider";
 import { formatMoney, formatPercent } from "@/lib/utils";
 
 export default async function StockDetailPage({ params }: PageProps<"/app/stocks/[symbol]">) {
   const { symbol: rawSymbol } = await params;
   const symbol = rawSymbol.toUpperCase();
-  const instrument = MARKET_CATALOG_BY_SYMBOL.get(symbol);
-  if (!instrument) notFound();
+
+  let asset;
+  try {
+    asset = await getAlpacaAsset(symbol);
+  } catch (error) {
+    if (error instanceof AssetUnavailableError && error.status === 404) notFound();
+    throw error;
+  }
+  if (!isSupportedStockOrEtf(asset)) notFound();
+
   const [quote, points] = await Promise.all([
     marketDataProvider.getQuote(symbol),
-    marketDataProvider.getSeries(symbol, 30),
+    marketDataProvider.getSeries(symbol, 30).catch(() => []),
   ]);
+  const instrument = profileAlpacaAsset(asset);
+  await syncAlpacaInstrument(asset, quote.price);
+
   return <>
     <Link className="button-quiet" href="/app/discover" style={{ paddingLeft: 0 }}><ArrowLeft size={16} /> Back to discover</Link>
     <div className="page-title" style={{ marginTop: ".6rem" }}><div style={{ display: "flex", gap: "1rem", alignItems: "center" }}><span className="symbol-logo" style={{ background: instrument.logoColor, width: "3.6rem", height: "3.6rem", fontSize: ".9rem" }}>{symbol.slice(0, 2)}</span><div><span className="eyebrow">{instrument.exchange} · {instrument.sector}</span><h1 style={{ marginTop: ".25rem" }}>{instrument.name} <span className="muted" style={{ fontFamily: "var(--font-manrope)", fontSize: "1rem" }}>{symbol}</span></h1></div></div><Link className="button-primary" href={`/app/trade/${symbol}`}>Trade {symbol} <ArrowRight size={17} /></Link></div>
     <div className="trade-grid">
       <section className="card" style={{ padding: "1.3rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "end" }}><div><span className="eyebrow">Live IEX price</span><strong style={{ display: "block", fontSize: "2.6rem", letterSpacing: "-.05em", marginTop: ".35rem" }}>{formatMoney(quote.price)}</strong><span className={quote.change >= 0 ? "positive" : "negative"} style={{ fontWeight: 850 }}>{formatMoney(quote.change)} · {formatPercent(quote.changePercent)} today</span></div><span className="status-pill">Market {quote.marketState}</span></div>
-        <StockChart points={points} />
+        {points.length ? <StockChart points={points} /> : <div className="info-box" style={{ margin: "1.3rem 0" }}>A live price is available, but adjusted daily history is not available for this investment yet.</div>}
         <div className="info-box"><CircleAlert size={16} style={{ display: "inline", marginRight: 6 }} />Real-time IEX data from Alpaca Basic. The chart uses adjusted daily bars. All orders and money in Market Lab remain simulated.</div>
       </section>
       <aside className="side-stack">

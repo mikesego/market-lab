@@ -2,11 +2,12 @@
 
 ## Current personal-demo implementation
 
-Market Lab now uses **Alpaca Basic with the real-time IEX feed**. This is the recommended free choice for Mike’s strictly personal demo because the 12-symbol catalog fits comfortably within Basic’s limits and Alpaca supplies live snapshots plus historical bars through a clean REST API.
+Market Lab now uses **Alpaca Basic with the real-time IEX feed**. This is the recommended free choice for Mike’s strictly personal demo because Alpaca supplies an active U.S. equity reference universe, live IEX snapshots, and historical bars through clean REST APIs. Twelve curated investments remain featured for approachable browsing, but authenticated users can search, research, and simulate trades in any active, tradable U.S.-listed stock or ETF that the adapter supports.
 
 The server-only `alpaca-basic-iex-v1` adapter:
 
 - requests multi-symbol IEX snapshots and adjusted daily bars;
+- searches Alpaca reference assets and persists newly opened instruments on demand;
 - preserves last trade, bid, ask, previous close, source timestamp, feed, and staleness;
 - marks portfolios at the latest trade and simulates buys at the ask and sells at the bid when available;
 - coalesces quote reads for three seconds and retries transient upstream failures;

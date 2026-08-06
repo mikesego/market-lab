@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const parsed = z.string().trim().regex(/^[A-Za-z.,]{1,120}$/).optional().safeParse(url.searchParams.get("symbols") ?? undefined);
+  const parsed = z.string().trim().regex(/^[A-Za-z0-9.,-]{1,160}$/).optional().safeParse(url.searchParams.get("symbols") ?? undefined);
   if (!parsed.success) return Response.json({ error: "Invalid symbols." }, { status: 400 });
   try {
     const symbols = parsed.data ? parsed.data.split(",").slice(0, 25).map((symbol) => symbol.toUpperCase()) : undefined;

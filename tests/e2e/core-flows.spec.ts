@@ -56,10 +56,22 @@ test("student can sign in and submit a simulated order", async ({ page }) => {
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByRole("heading", { name: /Good afternoon, Avery/i })).toBeVisible();
 
-  await page.goto("/app/trade/AAPL");
+  await page.goto("/app/discover");
+  await page.getByRole("button", { name: "ETFs", exact: true }).click();
+  await expect(page.locator('a[href="/app/stocks/SPY"]')).toBeVisible();
+  await expect(page.locator('a[href="/app/stocks/AAPL"]')).toHaveCount(0);
+  await page.getByRole("button", { name: "Stocks", exact: true }).click();
+  await expect(page.locator('a[href="/app/stocks/AAPL"]')).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Search investments" }).fill("SBUX");
+  const starbucks = page.locator('a[href="/app/stocks/SBUX"]');
+  await expect(starbucks).toContainText("Starbucks");
+  await starbucks.click();
+  await expect(page.getByRole("heading", { name: /Starbucks.*SBUX/i })).toBeVisible();
+  await page.getByRole("link", { name: "Trade SBUX" }).click();
   await page.getByLabel("Shares").fill("0.001");
-  await page.getByLabel("Why does this decision make sense?").fill("I expect services demand to support Apple, but weaker device sales would change my view.");
+  await page.getByLabel("Why does this decision make sense?").fill("I expect customer demand to support Starbucks, but weaker store sales would change my view.");
   await page.getByRole("button", { name: /Review and submit buy/i }).click();
-  await expect(page).toHaveURL(/\/app\/orders\?placed=(filled|queued|open)&symbol=AAPL/);
+  await expect(page).toHaveURL(/\/app\/orders\?placed=(filled|queued|open)&symbol=SBUX/);
   await expect(page.getByRole("heading", { name: "Your orders" })).toBeVisible();
 });

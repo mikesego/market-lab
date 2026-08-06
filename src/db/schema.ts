@@ -202,6 +202,21 @@ export const portfolios = pgTable(
   ],
 );
 
+export const portfolioEquitySnapshots = pgTable(
+  "portfolio_equity_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    portfolioId: uuid("portfolio_id")
+      .references(() => portfolios.id, { onDelete: "cascade" })
+      .notNull(),
+    equity: numeric("equity", { precision: 18, scale: 4 }).notNull(),
+    cash: numeric("cash", { precision: 18, scale: 4 }).notNull(),
+    holdingsValue: numeric("holdings_value", { precision: 18, scale: 4 }).notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("portfolio_equity_snapshots_portfolio_time_idx").on(table.portfolioId, table.capturedAt)],
+);
+
 export const positions = pgTable(
   "positions",
   {
