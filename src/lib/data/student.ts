@@ -77,10 +77,13 @@ export async function getStudentPortfolioDTO() {
       .where(eq(watchlistItems.studentId, session.studentId)),
   ]);
 
+  const positionQuotes = await marketDataProvider.getQuotes(positionRows.map((position) => position.symbol));
+  const quotesBySymbol = new Map(positionQuotes.map((quote) => [quote.symbol, quote]));
   let holdingsValue = new Decimal(0);
   let totalCost = new Decimal(0);
   const holdings = positionRows.map((position) => {
-    const quote = marketDataProvider.getQuote(position.symbol);
+    const quote = quotesBySymbol.get(position.symbol);
+    if (!quote) throw new Error(`A live quote is unavailable for ${position.symbol}.`);
     const quantity = new Decimal(position.quantity);
     const marketValue = quantity.times(quote.price);
     const cost = quantity.times(position.averageCost);
@@ -168,10 +171,14 @@ export async function getLeaderboardDTO(gameId: string) {
   ]);
 
   const relevantPortfolioIds = new Set(portfolioRows.map((row) => row.portfolioId));
+  const liveQuotes = await marketDataProvider.getQuotes(positionRows.map((row) => row.symbol));
+  const quotesBySymbol = new Map(liveQuotes.map((quote) => [quote.symbol, quote]));
   const values = new Map<string, Decimal>();
   for (const row of positionRows) {
     if (!relevantPortfolioIds.has(row.portfolioId)) continue;
-    const value = new Decimal(row.quantity).times(marketDataProvider.getQuote(row.symbol).price);
+    const quote = quotesBySymbol.get(row.symbol);
+    if (!quote) throw new Error(`A live quote is unavailable for ${row.symbol}.`);
+    const value = new Decimal(row.quantity).times(quote.price);
     values.set(row.portfolioId, (values.get(row.portfolioId) ?? new Decimal(0)).plus(value));
   }
 
@@ -214,7 +221,7 @@ export async function getWatchlistQuotes() {
     .innerJoin(instruments, eq(watchlistItems.instrumentId, instruments.id))
     .where(eq(watchlistItems.studentId, session.studentId));
   const symbols = rows.length ? rows.map((row) => row.symbol) : ["AAPL", "MSFT", "SPY"];
-  return symbols.map((symbol) => marketDataProvider.getQuote(symbol));
+  return marketDataProvider.getQuotes(symbols);
 }
 
 export async function getSymbolsByIds(ids: string[]) {

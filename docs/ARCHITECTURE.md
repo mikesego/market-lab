@@ -34,6 +34,8 @@ Money and share math uses arbitrary-precision decimals. Database constraints and
 ## Important modules
 
 - `src/lib/market/provider.ts`: stable adapter boundary.
+- `src/lib/market/alpaca-provider.ts`: server-only Alpaca Basic REST client, bounded retry, and short quote cache.
+- `src/lib/market/alpaca-normalize.ts`: pure response normalization used by the adapter and contract tests.
 - `src/lib/market/calendar.ts`: U.S. equity session, weekend, holiday, and early-close logic.
 - `src/lib/trading/order-service.ts`: validation, reservation, placement, cancellation, and fill processing.
 - `src/lib/trading/corporate-actions.ts`: idempotent splits and cash dividends.
@@ -51,15 +53,15 @@ Money and share math uses arbitrary-precision decimals. Database constraints and
 - Learning evidence never enters the financial ranking formula.
 - Official rank is descending equity; ties share rank.
 
-## Provider replacement
+## Market-data boundary
 
-The replay provider and a future licensed provider return the same normalized quote/series shapes. Production work adds a provider implementation, server credentials, contract-driven cache/attribution rules, corporate-action ingestion, and conformance tests. Portfolio, classroom, and learning code should not change.
+The current asynchronous adapter returns normalized quote and series shapes from Alpaca Basic’s IEX feed. Credentials are read only on the server. Portfolio valuation and discovery use the latest trade; simulated buys use the ask and sells use the bid when available. The order engine refuses stale open-session quotes and has no generated-price fallback.
 
-The production adapter should evolve the current synchronous methods into an async, cached implementation if the chosen vendor requires network calls. That is an interface migration localized to the market-data layer and its callers, not a trading-accounting redesign.
+A future business provider implements the same async interface, so portfolio, classroom, and learning code do not need to change. Corporate-action ingestion, contractual cache/attribution rules, and conformance testing remain launch requirements.
 
 ## Environments
 
-- Local: local Next server with Neon development branch and Clerk development instance.
-- Preview: isolated Vercel deployments; replay data only unless a provider agreement explicitly covers them.
-- Production demo: production hostname, conspicuous replay banner, no real students.
+- Local: local Next server with Neon development branch, Clerk development instance, and Mike’s Alpaca Basic credentials.
+- Preview: isolated Vercel deployments with the same personal-only Alpaca access; do not share preview URLs.
+- Production demo: production hostname, conspicuous personal-demo/live-IEX banner, Mike as the sole user.
 - Real-student production: production Clerk instance, licensed displayed data, privacy agreements, monitoring, backups, incident contacts, and launch approval.

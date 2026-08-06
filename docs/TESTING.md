@@ -2,7 +2,7 @@
 
 ## Automated suites
 
-`npm run test` covers deterministic financial calculations and U.S. market-calendar behavior. Add table-driven cases whenever a rule or edge case changes.
+`npm run test` covers pure financial calculations, U.S. market-calendar behavior, and Alpaca response normalization. Add table-driven cases whenever a rule or edge case changes.
 
 `npm run test:e2e` runs the critical public, teacher-demo, and student-trading journeys on desktop Chromium and a mobile viewport. It includes axe-core scans for the public experience.
 
@@ -10,7 +10,7 @@
 
 ## Required provider conformance tests
 
-Before selecting licensed mode, add recorded fixtures for quotes, bars, holidays, half-days, split adjustment, cash dividends, symbol changes, stale data, rate limits, malformed responses, provider downtime, and duplicate events. Tests must not call a paid live provider on every CI run.
+Before multi-user launch, expand mocked Alpaca/provider response fixtures for quotes, bars, holidays, half-days, split adjustment, cash dividends, symbol changes, stale data, rate limits, malformed responses, provider downtime, and duplicate events. CI must validate response contracts without depending on an open market or live credentials; these fixtures are test inputs, not an application data mode.
 
 ## Financial invariant tests to expand
 

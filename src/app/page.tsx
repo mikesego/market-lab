@@ -13,13 +13,23 @@ import {
 
 import { DemoBanner } from "@/components/demo-banner";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
-import { getReplayQuotes } from "@/lib/market/replay-provider";
+import { getUsEquitySession } from "@/lib/market/calendar";
+import { marketDataProvider } from "@/lib/market/provider";
+import type { Quote } from "@/lib/market/types";
 import { formatMoney, formatPercent } from "@/lib/utils";
 
 const barHeights = [34, 43, 38, 61, 54, 70, 64, 89, 78, 101, 94, 124, 117, 139, 132, 148];
 
-export default function Home() {
-  const quotes = getReplayQuotes().slice(0, 7);
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  let quotes: Quote[] = [];
+  try {
+    quotes = (await marketDataProvider.getQuotes()).slice(0, 7);
+  } catch {
+    // The home page remains useful during a temporary upstream outage; no substitute prices are shown.
+  }
+  const marketState = getUsEquitySession().state;
   return (
     <>
       <DemoBanner />
@@ -48,7 +58,7 @@ export default function Home() {
                     <span className="eyebrow" style={{ color: "#b8e6ef" }}>Portfolio value</span>
                     <div style={{ fontSize: "2.55rem", fontWeight: 850, letterSpacing: "-.05em", marginTop: ".5rem" }}>$103,842.17</div>
                   </div>
-                  <span className="status-pill" style={{ color: "#c7f36b", height: "fit-content" }}>Replay open</span>
+                  <span className="status-pill" style={{ color: "#c7f36b", height: "fit-content" }}>Market {marketState}</span>
                 </div>
                 <div className="board-chart" aria-hidden="true">
                   {barHeights.map((height, index) => <span key={index} style={{ height }} />)}
@@ -65,15 +75,16 @@ export default function Home() {
           </div>
         </section>
 
-        <div className="ticker" aria-label="Sample replay prices">
+        <div className="ticker" aria-label="Live IEX market prices">
           <div className="container-shell ticker-inner">
-            <span className="eyebrow">Replay tape</span>
+            <span className="eyebrow">Live IEX tape</span>
             {quotes.map((quote) => (
               <span className="ticker-item" key={quote.symbol}>
                 {quote.symbol} {formatMoney(quote.price)}
                 <span className={quote.change >= 0 ? "positive" : "negative"}>{formatPercent(quote.changePercent)}</span>
               </span>
             ))}
+            {!quotes.length && <span className="ticker-item">Market data temporarily unavailable</span>}
           </div>
         </div>
 

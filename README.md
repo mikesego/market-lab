@@ -6,9 +6,9 @@ The official competition is intentionally simple: the portfolio with the greates
 
 ## Current deployment mode
 
-The checked-in provider is `deterministic-replay-v1`. It creates stable, realistic-looking development prices without claiming to be live market data. The UI labels this mode conspicuously. It is suitable for development, demonstrations, and adult evaluation; it is not licensed for use with real students.
+The active provider is `alpaca-basic-iex-v1`. It retrieves real-time IEX snapshots and adjusted daily bars through Alpaca Basic for Mike’s personal demonstration. Every balance and order remains simulated; the application never sends an order to Alpaca or any brokerage. There is no synthetic-price fallback: if Alpaca is unavailable or an open-session quote is stale, new fills stop safely.
 
-Before real-student launch, implement the existing `MarketDataProvider` contract with a licensed business feed and complete the launch gates in [docs/PRIVACY_LAUNCH_CHECKLIST.md](docs/PRIVACY_LAUNCH_CHECKLIST.md).
+This free personal-data arrangement must not be treated as permission for public, classroom, or multi-user display. Before sharing the application, replace or upgrade the provider agreement for the intended audience and complete the launch gates in [docs/PRIVACY_LAUNCH_CHECKLIST.md](docs/PRIVACY_LAUNCH_CHECKLIST.md).
 
 ## Product areas
 
@@ -61,6 +61,7 @@ See [.env.example](.env.example). Important values are:
 - `STUDENT_AUTH_PEPPER`: independent server secret for hashing login-rate-limit identifiers.
 - `CRON_SECRET`: bearer credential for `/api/jobs/market`.
 - `OPERATOR_EMAILS`: comma-separated adults allowed to use `/ops` in production.
+- `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`: server-only Alpaca market-data credentials.
 
 Never expose provider credentials or privileged database credentials to the browser. `NEXT_PUBLIC_` is reserved for intentionally public values.
 

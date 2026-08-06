@@ -32,7 +32,7 @@ export default function JoinPage() {
           <h2 className="display" style={{ fontSize: "3rem", margin: ".55rem 0 .6rem" }}>Join your class</h2>
           <p className="muted" style={{ lineHeight: 1.6, marginBottom: "1.5rem" }}>Use the three details on your teacher’s login card.</p>
           <div className="info-box" style={{ marginBottom: "1rem" }}>
-            Demo credentials are already filled in. This season uses deterministic replay prices.
+            Demo credentials are already filled in. Prices come from Alpaca’s live IEX market feed; all money and trades are simulated.
           </div>
           <JoinForm />
         </div>

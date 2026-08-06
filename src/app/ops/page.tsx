@@ -54,8 +54,8 @@ export default async function OperatorPage() {
         <aside className="card" style={{ padding: "1.25rem", alignSelf: "start" }}>
           <span className="eyebrow">Market data</span>
           <h2 className="display" style={{ fontSize: "2rem", margin: ".6rem 0" }}>{marketDataProvider.label}</h2>
-          <p className="muted" style={{ lineHeight: 1.6 }}>{marketDataProvider.isLicensedForStudents ? "Licensed for student display." : "Development replay only. Replace before real-student launch."}</p>
-          <dl className="compact-list"><div className="compact-row"><dt>Provider ID</dt><dd>{marketDataProvider.id}</dd></div><div className="compact-row"><dt>Job endpoint</dt><dd>/api/jobs/market</dd></div></dl>
+          <p className="muted" style={{ lineHeight: 1.6 }}>Live IEX data for this personal demonstration. Upgrade the market-data agreement before sharing the application with other users.</p>
+          <dl className="compact-list"><div className="compact-row"><dt>Provider ID</dt><dd>{marketDataProvider.id}</dd></div><div className="compact-row"><dt>Usage mode</dt><dd>{marketDataProvider.usageMode}</dd></div><div className="compact-row"><dt>Job endpoint</dt><dd>/api/jobs/market</dd></div></dl>
         </aside>
       </section>
     </main>

@@ -67,7 +67,7 @@ Learning mastery, research, decision quality, reflection, diversification, and o
 
 ### 1.2 The central technical decision
 
-The deployed application will not use Mike’s Robinhood MCP connection as its market-data backend. That connection is an authenticated Codex capability associated with a brokerage environment, not a licensed multi-user application feed. It also exposes order-related capabilities that must never be reachable from a child-facing system. Market Lab uses a server-only `MarketDataProvider` adapter backed initially by deterministic replay/permissible free development sources and, before real-user launch, by a properly licensed U.S. equities business feed. Robinhood MCP may be used manually during development to spot-check public quotes, never by the production runtime and never to place a trade for this product.
+The deployed application will not use Mike’s Robinhood MCP connection as its market-data backend. That connection is an authenticated Codex capability associated with a brokerage environment, not a licensed multi-user application feed. It also exposes order-related capabilities that must never be reachable from a child-facing system. Market Lab uses a server-only asynchronous `MarketDataProvider` adapter backed now by Alpaca Basic’s real-time IEX feed for Mike’s sole-user personal demo and, before the URL is shared, by a provider agreement that permits the intended external display and simulated-trading uses. Robinhood MCP may be used manually during development to spot-check public quotes, never by the production runtime and never to place a trade for this product.
 
 ### 1.3 Launch definition
 
@@ -80,9 +80,9 @@ Version 1.0 is launched only when:
 - The production market-data contract permits the exact display and simulation use.
 - Accessibility, privacy, security, load, failure-recovery, and browser acceptance suites pass.
 - The site is deployed to Vercel, `stocks.mikesego.com` points to it through Cloudflare DNS, and production smoke tests pass.
-- The source is committed and pushed to a private GitHub repository with deployment and operating documentation.
+- The source is committed and pushed to the public `mikesego/market-lab` GitHub repository with deployment and operating documentation; secrets are never committed.
 
-A production-domain **development demo** may be deployed before the licensed-feed gate if it is conspicuously labeled, uses synthetic/historical replay rather than representing prices as current, and is not opened to real students. Real-user launch still requires the complete definition above.
+A production-domain **personal demo** may be deployed before the multi-user licensed-feed gate if it is conspicuously labeled, uses Mike’s Alpaca Basic credentials server-side, and Mike is the sole user. Prices are accurately labeled as real-time IEX data and all trades as simulated. The site must not be shared until the provider agreement covers the intended audience. Real-user launch still requires the complete definition above.
 
 ---
 
@@ -349,7 +349,7 @@ Decision cards, proposals, approvals, orders, and reflections retain member attr
 
 ### 6.5 Spectator/demo mode
 
-A teacher can open a seeded, read-only demo game without student accounts. Public unauthenticated demos MUST use synthetic/historical data and contain no real student records.
+A teacher can open a seeded, read-only demo game without student accounts. Mike's unshared, owner-only personal demo may use the server-side Alpaca Basic IEX feed and synthetic student records. Before a demo URL is shared or promoted publicly, its market-data agreement MUST permit that display and it MUST contain no real student records.
 
 ---
 
@@ -441,10 +441,10 @@ All phases below are part of the committed version-1.0 build after approval. “
 ### Phase 0 — Foundation and provider-interface gate
 
 - Finalize the working name, threat model, data map, provider interface, future contract requirements, architecture decision records, design tokens, and game-rule fixtures.
-- Create private GitHub repository, CI, environments, Vercel project, database, cache, secrets, and operator runbooks.
-- Build synthetic/replay and freely accessible development-data providers plus a deterministic simulation harness before connecting a paid feed.
+- Create the public GitHub repository, CI, environments, Vercel project, database, cache, secrets, and operator runbooks; keep all credentials outside source control.
+- Build the Alpaca Basic IEX provider, provider-response contract fixtures, and deterministic financial calculations without adding a runtime synthetic-price mode.
 
-Exit: deterministic engine tests pass; no student-facing production traffic.
+Exit: engine and Alpaca normalization tests pass; live-data failures stop fills safely; no student-facing production traffic.
 
 ### Phase 1 — Playable vertical slice
 
@@ -479,11 +479,11 @@ Exit: launch checklist in Section 38 is signed off.
 - Production Vercel deployment.
 - Cloudflare DNS for `stocks.mikesego.com` pointing to Vercel while DNS remains managed by Cloudflare.
 - Production database migrations, seed templates, provider keys, monitors, smoke tests, and rollback verification.
-- Push tagged source to private GitHub repository and record deployment SHA.
+- Push tagged source to the public GitHub repository and record deployment SHA.
 
 Exit: launch definition in Section 1.3 is met.
 
-Before a licensed business feed is connected, Phase 5 may end in **Demo Mode** at the production hostname: synthetic/historical data, prominent non-current-data labeling, no real student use, and an operator-only switch that cannot be mistaken for real-user readiness.
+Before a licensed business feed is connected, Phase 5 may end in **Personal Demo Mode** at the production hostname: Mike is the sole user, Alpaca Basic IEX data and all simulated trading are conspicuously labeled, credentials remain server-only, and no real student data is present. The URL must not be shared until the market-data agreement permits the intended audience.
 
 ### Post-1.0 candidates
 
@@ -593,7 +593,7 @@ Steps:
 2. Read a quote and its timestamp.
 3. Choose a small dollar amount to invest in the synthetic company.
 4. Review estimated shares and what can change before execution.
-5. Submit, see a deterministic fill, and inspect cash + holding = total equity.
+5. Submit, see a simulated fill based on eligible live quote evidence, and inspect cash + holding = total equity.
 6. Answer one causal check: “Did buying the stock immediately make the portfolio richer?” Correct answer: no, aside from spread/fee assumptions; cash changed form.
 7. Return to the real game with a short readiness summary.
 
@@ -1023,9 +1023,9 @@ The platform stores times in UTC, calculates market rules using IANA timezone `A
 
 Every game has exactly one immutable competitive data mode:
 
+- `REALTIME_IEX_PERSONAL`: Alpaca Basic real-time IEX feed for the owner-only personal demo.
 - `REALTIME_CONSOLIDATED`: properly licensed consolidated U.S. feed.
 - `DELAYED_15`: properly licensed approximately 15-minute delayed consolidated feed.
-- `HISTORICAL_REPLAY`: deterministic historical/synthetic mode, used for demos and future scenarios.
 
 The UI always displays the mode. A class cannot mix feeds. Data mode does not imply exchange execution; all orders remain simulations.
 
@@ -1064,17 +1064,17 @@ If freshness is insufficient:
 - Engine retries with bounded backoff.
 - Provider health alert fires.
 
-### 14.6 Development provider plan
+### 14.6 Personal-demo provider plan
 
-The complete application is built and verified without waiting for a paid market-data contract:
+The complete application is built and exercised against Alpaca Basic while Mike is the only user:
 
-1. **Deterministic replay provider:** the default for local development, CI, screenshots, demos, order/corporate-action tests, and the initial production-domain Demo Mode. It supplies repeatable quotes, charts, fundamentals, dividends, splits, halts, market closures, and errors.
-2. **Free public reference sources:** use official freely accessible instrument/company reference and filing data where terms allow, with source/as-of labels. These may enrich development search and fundamentals but do not imply permission to redistribute real-time prices.
-3. **Optional free-development price adapter:** if a no-cost API is technically accessible, implement it only behind the same adapter, label its limitations, and keep it disabled for real students unless its terms explicitly permit that use.
-4. **Recorded fixtures:** minimize and store contract-permitted/non-copyrightable response shapes for deterministic tests; never commit provider secrets.
-5. **Manual Robinhood verification:** the owner/Codex may use read-only Robinhood MCP quote/fundamental queries to spot-check calculations or fixture realism. Results do not become a production feed, and development never places a real order.
+1. **Live Alpaca IEX provider:** the only runtime price source for local development, previews, and the owner-only production demo. It supplies real-time IEX snapshots and adjusted daily bars through server-side REST calls.
+2. **No runtime synthetic fallback:** if credentials are missing, Alpaca is unavailable, a symbol is missing, or an open-session quote is stale, the UI reports unavailability and the order engine does not fill.
+3. **Execution basis:** portfolios mark at the latest eligible trade; simulated buys use the ask and sells use the bid when available, falling back to the eligible last trade only when the side quote is absent. Every fill records the normalized provider event ID and execution price.
+4. **Mocked contract fixtures:** store minimal, non-secret Alpaca response shapes for CI tests of normalization, malformed responses, staleness, rate limits, and downtime. These fixtures are test inputs and are never a selectable application data mode.
+5. **Manual Robinhood verification:** the owner/Codex may use read-only Robinhood MCP quote/fundamental queries to spot-check calculations. Results do not become an application feed, and development never places a real order.
 
-The adapter contract, normalized models, caching, simulation clock, and execution engine must be production-complete before the licensed provider is chosen. Connecting the later provider should require a new adapter, credentials, contract-specific attribution/cache policy, and conformance tests—not a rewrite of portfolio or order logic.
+The adapter contract, normalized models, short contractual cache, simulation clock, and execution engine remain provider-independent. Moving to a business feed requires a new adapter or upgraded Alpaca entitlement, credentials, contract-specific attribution/cache policy, and conformance tests—not a rewrite of portfolio or order logic.
 
 ### 14.7 Production provider recommendation
 
@@ -1082,7 +1082,7 @@ The provider is selected by contract rights, not the cheapest individual plan. R
 
 1. Obtain written confirmation from Massive (or another approved vendor) that the selected **business** plan permits server-side use, display to authenticated students/teachers, derived portfolio valuation, and simulated execution at the expected user count.
 2. Prefer consolidated bid/ask/trade, reference data, aggregates, dividends, splits, ticker events, and market status through one contract.
-3. Implement Alpaca delayed SIP or another vendor only if its agreement permits multi-user display/redistribution; personal/trader plan pricing is not sufficient evidence.
+3. Upgrade Alpaca to an appropriate business/exchange entitlement or implement another vendor only when its agreement permits multi-user display/redistribution; the current Basic personal access is not sufficient evidence.
 4. Keep provider-specific logic behind the adapter and store source evidence so a replacement does not rewrite the ledger.
 
 No licensed data is exposed through a general-purpose unauthenticated API. Client payloads contain only the fields needed for the current screen, with cache and attribution rules from the provider contract.
@@ -1711,7 +1711,7 @@ Use stable supported versions available at implementation time; pin exact versio
 - **Observability:** Structured logs, Sentry-compatible error reporting with aggressive redaction, OpenTelemetry traces, uptime checks, and first-party operational metrics.
 - **Hosting:** Vercel production and preview environments.
 - **DNS:** Cloudflare-managed DNS pointing `stocks.mikesego.com` to Vercel.
-- **Source:** Private GitHub repository with protected default branch and CI.
+- **Source:** Public GitHub repository with protected default branch and CI; no secrets, private data, or production exports in source control.
 
 Vendor choices remain contingent on privacy/DPA, regional storage, and cost approval.
 
@@ -1824,9 +1824,9 @@ Use server-sent events where supported, with 5–15 second visibility-aware poll
 
 ### 23.7 Environment separation
 
-- Local: synthetic provider and disposable database.
-- Test/CI: deterministic fixtures only; no production providers.
-- Preview: synthetic or recorded/replay data; no production student records.
+- Local: live Alpaca IEX provider and disposable database.
+- Test/CI: mocked provider response contracts only; no live credentials.
+- Preview: live Alpaca IEX data only in owner-protected previews; no production student records.
 - Staging: provider sandbox/delayed feed under contract, synthetic student data.
 - Production: licensed feed and isolated production resources.
 
@@ -2584,7 +2584,7 @@ Use real PostgreSQL/Redis-compatible test services, not only mocks:
 
 ### 33.4 Contract tests
 
-- Recorded/synthetic provider payload fixtures for all supported response variants.
+- Mocked provider response payload fixtures for all supported response variants.
 - Provider terms-driven field/caching behavior.
 - API OpenAPI/response schema.
 - Mission content schema/version.
@@ -2665,9 +2665,9 @@ CI blocks merge/deploy on type, lint, unit/invariant, integration, migration, E2
 
 Content is versioned Markdown/structured JSON in the repository, validated in CI, and reviewed for financial accuracy, reading level, accessibility, and source rights.
 
-### 34.2 Synthetic demo data
+### 34.2 Demo content and state
 
-Create a clearly fictional exchange with at least six companies and one broad “Lab Fund,” deterministic quotes, an earnings event, dividend, split, halt, and symbol change. It powers orientation, demos, screenshots, automated tests, and local development. Names must not mimic real tickers closely enough to confuse a student.
+Use the real 12-instrument catalog and live Alpaca IEX prices throughout the owner-facing demo. Seed pseudonymous students, portfolios, journals, lessons, and order histories representing cash-only, diversified, concentrated, queued, rejected, dividend, split, and reflection states. Static seeded financial history must be labeled as simulated history; current valuation always comes from the active live provider. Provider edge cases use mocked response objects only inside automated tests.
 
 ### 34.3 Teacher demo game
 
@@ -2679,10 +2679,10 @@ Seed a read-only class with 12 aliases representing useful states: cash-only, di
 
 ### 35.1 Repository and CI
 
-- Initialize a private Git repository in `/Users/mikesego/Code/stocks` after owner approval.
-- Create/push a private GitHub repository; name proposed `market-lab` unless owner chooses otherwise.
+- Use the Git repository in `/Users/mikesego/Code/stocks`.
+- Push the public `mikesego/market-lab` GitHub repository; source openness never includes credentials or user data.
 - Default branch protected; pull request or equivalent review checks even for owner-operated changes.
-- GitHub Actions runs full CI; Vercel preview runs synthetic data only.
+- GitHub Actions runs full CI with mocked provider response contracts; private/unshared Vercel previews use server-side Alpaca credentials.
 - Commit `.env.example`, never secrets.
 - Tag production release `v1.0.0`; record SHA in application health/ops.
 
@@ -2692,7 +2692,7 @@ Seed a read-only class with 12 aliases representing useful states: cash-only, di
 - Server functions run in a region compatible with the primary database and contracts.
 - Cron/queue handlers require signed internal authorization.
 - Environment variables separated and rotated.
-- Preview deployment access protected because teacher/admin surfaces exist even with synthetic data.
+- Preview deployment access protected because teacher/admin surfaces and personal market-data credentials exist.
 - Production deploy uses migrations designed for backward compatibility and a documented rollback.
 
 ### 35.3 Cloudflare DNS
@@ -2701,7 +2701,7 @@ Keep `mikesego.com` DNS managed by Cloudflare. Add the hostname/records Vercel s
 
 ### 35.4 Environments and data
 
-- Preview/staging use synthetic users and synthetic/replay market data.
+- Preview/staging use synthetic users and live Alpaca IEX data only while access remains private to Mike.
 - Production uses separate project/database/cache/queue/provider credentials.
 - No production database fork is attached to preview.
 - Seed commands refuse production unless a specific safe seed set and explicit flag are used.
@@ -2729,7 +2729,7 @@ This replaces the original draft’s unrealistic 2–4 week full-product estimat
 
 - Repository, CI, environments, ADRs, design system, content schemas.
 - Database/Redis/job primitives, observability/redaction.
-- Synthetic provider and deterministic calendar/engine fixtures.
+- Alpaca Basic provider, mocked response contracts, and deterministic calendar/engine tests.
 
 ### 36.2 Epic B — Identity and classrooms
 
@@ -2854,7 +2854,7 @@ Given a verified organization deletion request, when the workflow completes, the
 - [ ] Alerts/status/runbooks/on-call contact tested.
 - [ ] Production Vercel resources isolated and secrets rotated.
 - [ ] Cloudflare DNS and Vercel TLS verified for `stocks.mikesego.com`.
-- [ ] Private GitHub source pushed, branch protected, CI green, release tagged.
+- [ ] Public GitHub source pushed without secrets, branch protected, CI green, release tagged.
 - [ ] Production smoke and rollback verification pass.
 
 ---
@@ -2898,8 +2898,8 @@ The specification records the owner-approved choices that let implementation pro
 10. **Identity:** Teacher adult auth; students use pseudonymous unique seat credentials, no student email.
 11. **Social:** No student chat, DMs, public profiles, or global leaderboard; teacher one-way announcements and structured help flag.
 12. **AI:** No generative AI required in student 1.0; reviewed/rule-based guidance only.
-13. **Market data:** Build the whole product first with deterministic replay and permissible free development sources behind the adapter. Robinhood MCP may be used manually/read-only for validation but remains excluded from runtime. Before real-student launch, plug in a properly licensed business feed; real-time is preferred if financially reasonable, while licensed 15-minute delayed mode is acceptable if conspicuous.
-14. **Hosting/source:** Vercel at `stocks.mikesego.com`, Cloudflare-managed DNS, private GitHub repository.
+13. **Market data:** Run the complete personal demo on Alpaca Basic’s live IEX feed with no runtime synthetic fallback. Robinhood MCP may be used manually/read-only for validation but remains excluded from runtime. Before the URL is shared, upgrade or replace the provider with an agreement covering the intended external users; consolidated real-time is preferred if financially reasonable, while licensed 15-minute delayed mode is acceptable if conspicuous.
+14. **Hosting/source:** Vercel at `stocks.mikesego.com`, Cloudflare-managed DNS, public GitHub repository with all credentials held outside source control.
 15. **Privacy model:** School-directed/minimal-data pilot first; no advertising, data sale, behavioral tracking, or student-content training.
 16. **Launch quality:** All phases and launch gates are required; no “MVP” deployment to real students that bypasses privacy, accounting, or data-license gates.
 
@@ -2907,7 +2907,7 @@ The specification records the owner-approved choices that let implementation pro
 
 These do not block implementation or a clearly labeled production-domain Demo Mode, but real-user activation requires owner action or explicit approval:
 
-- Market-data provider contract/API credential and any recurring cost.
+- Alpaca Basic account/API credentials for the current personal demo; an appropriate provider contract and recurring cost before any external users are invited.
 - Email/OAuth provider credentials and approved redirect origins.
 - Production Vercel/GitHub/Cloudflare access if not already available to the build environment.
 - Product/privacy legal review before inviting real under-13 students.
@@ -2924,7 +2924,7 @@ Implementation authorization has been received. The implementation sequence is:
 1. Read this document completely.
 2. Inspect workspace/available credentials without exposing them.
 3. Create a traceability plan mapping every `ID-*`, `GAME-*`, `DATA-*`, `ORD-*`, `PORT-*`, `LEARN-*`, `TEACH-*`, `SAFE-*`, and `OPS-*` requirement to code/tests.
-4. Implement Phase 0 synthetic provider and deterministic financial engine before paid-provider/UI breadth.
+4. Implement the Phase 0 Alpaca Basic adapter, response-contract tests, and deterministic financial engine before broader UI work.
 5. Produce ADRs for provider, auth, database/ledger, jobs, content format, privacy, and deployment.
 6. Build vertical slices that include UI, domain command, authorization, audit, observability, and tests.
 7. Verify every phase against its exit condition; do not mark mocked or static screens complete.
@@ -2942,7 +2942,7 @@ Implementation authorization has been received. The implementation sequence is:
 - Treat data freshness and source time as first-class values.
 - Use feature flags only for safe rollout; flags cannot bypass required authorization/privacy/accounting.
 - Include loading, empty, error, stale, closed, restricted, and success states for every surface.
-- Use realistic deterministic fixtures; do not depend on an open market for CI.
+- Use realistic mocked provider response fixtures; do not depend on an open market or live credentials for CI.
 - Preserve user changes and use reversible migrations/deploys.
 
 ### 41.3 Definition of done for each feature
@@ -3089,7 +3089,7 @@ These sources inform the requirements; they are not copied curricula and do not 
 - **Benchmark:** Shared reference investment used to compare portfolio performance.
 - **Bid:** Highest eligible displayed price buyers are offering; used for simulated market sells when licensed.
 - **Corporate action:** Company/fund event such as dividend, split, merger, or symbol change.
-- **Data mode:** Real-time consolidated, delayed, or historical-replay basis used by a game.
+- **Data mode:** The real-time IEX, real-time consolidated, or delayed market-data basis used by a game.
 - **Decision card:** Structured pre-trade reasoning record.
 - **Equity:** Total virtual cash plus current holding value.
 - **Fill:** Simulated execution of an accepted order.

@@ -71,7 +71,7 @@ export async function createSeason(formData: FormData) {
       name: parsed.seasonName,
       joinCode,
       status: "draft",
-      dataMode: "replay",
+      dataMode: "alpaca_iex",
       startingCash: "100000",
       startsAt: parsed.startsAt,
       endsAt: parsed.endsAt,
@@ -79,7 +79,7 @@ export async function createSeason(formData: FormData) {
       config: { rationaleRequired: true, leaderboardVisibility: "class_aliases", benchmark: "SPY" },
     }).returning();
     await tx.insert(classrooms).values({ gameId: createdGame.id, name: parsed.classroomName, gradeBand: parsed.gradeBand });
-    await tx.insert(auditEvents).values({ actorType: "adult", actorId: adult.id, action: "game_created", targetType: "game", targetId: createdGame.id, gameId: createdGame.id, metadata: { dataMode: "replay" } });
+    await tx.insert(auditEvents).values({ actorType: "adult", actorId: adult.id, action: "game_created", targetType: "game", targetId: createdGame.id, gameId: createdGame.id, metadata: { dataMode: "alpaca_iex" } });
     return [createdGame];
   });
   redirect(`/teacher/games/${game.id}`);

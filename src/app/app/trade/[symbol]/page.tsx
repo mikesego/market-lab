@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { TradeForm } from "@/components/trade-form";
 import { getInstrumentPositionDTO, getStudentPortfolioDTO } from "@/lib/data/student";
 import { MARKET_CATALOG_BY_SYMBOL } from "@/lib/market/catalog";
-import { getReplayQuote } from "@/lib/market/replay-provider";
+import { marketDataProvider } from "@/lib/market/provider";
 import { formatMoney, formatPercent } from "@/lib/utils";
 
 export default async function TradePage({ params }: PageProps<"/app/trade/[symbol]">) {
@@ -13,9 +13,12 @@ export default async function TradePage({ params }: PageProps<"/app/trade/[symbo
   const symbol = rawSymbol.toUpperCase();
   const catalogItem = MARKET_CATALOG_BY_SYMBOL.get(symbol);
   if (!catalogItem) notFound();
-  const [position, portfolio] = await Promise.all([getInstrumentPositionDTO(symbol), getStudentPortfolioDTO()]);
+  const [position, portfolio, quote] = await Promise.all([
+    getInstrumentPositionDTO(symbol),
+    getStudentPortfolioDTO(),
+    marketDataProvider.getQuote(symbol),
+  ]);
   if (!position || !portfolio) return null;
-  const quote = getReplayQuote(symbol);
   const owned = Number(position.position?.quantity ?? 0);
   return <>
     <Link className="button-quiet" href={`/app/stocks/${symbol}`} style={{ paddingLeft: 0 }}><ArrowLeft size={16} /> Back to {symbol} research</Link>

@@ -1,5 +1,20 @@
 # Market-data provider plan
 
+## Current personal-demo implementation
+
+Market Lab now uses **Alpaca Basic with the real-time IEX feed**. This is the recommended free choice for Mike’s strictly personal demo because the 12-symbol catalog fits comfortably within Basic’s limits and Alpaca supplies live snapshots plus historical bars through a clean REST API.
+
+The server-only `alpaca-basic-iex-v1` adapter:
+
+- requests multi-symbol IEX snapshots and adjusted daily bars;
+- preserves last trade, bid, ask, previous close, source timestamp, feed, and staleness;
+- marks portfolios at the latest trade and simulates buys at the ask and sells at the bid when available;
+- coalesces quote reads for three seconds and retries transient upstream failures;
+- blocks fills when the regular session is closed or an open-session quote is more than two minutes old;
+- never substitutes synthetic prices and never sends a brokerage order.
+
+Alpaca credentials stay in Vercel environment variables and `.env.local`; they must never be committed or exposed with a `NEXT_PUBLIC_` prefix. The current use is personal only. Before the URL is shared, confirm an upgraded agreement or switch to a provider whose contract permits the intended external display and simulated-trading use.
+
 ## Recommendation
 
 For the first real-student launch, obtain a written business agreement for approximately 15-minute-delayed U.S. equities and ETF data from **Massive (formerly Polygon.io)** and implement it behind `MarketDataProvider`. The agreement must explicitly permit authenticated external display to students and teachers, simulated execution, server-side storage/caching, derived portfolio valuation, and the expected number of users.
@@ -46,8 +61,8 @@ If licensed bid/ask is unavailable, use the explicit last-trade fill model in th
 7. Reconcile representative quotes, historical bars, splits, dividends, and market-calendar edge cases.
 8. Load-test open-order polling and portfolio valuation within vendor rate limits.
 9. Add provider health, lag, error-rate, and stale-symbol alerts to operations.
-10. Complete a written entitlement review before changing `isLicensedForStudents` to `true`.
+10. Complete a written entitlement review before changing the product’s `personal-demo` usage mode.
 
-## Development and Robinhood
+## Robinhood boundary
 
-The runtime uses deterministic replay data. The existing Robinhood MCP may be used manually and read-only for development spot checks, but it is not an application data source, is not a multi-user display license, and must never be connected to Market Lab order submission. Market Lab creates simulated fills only; it never places brokerage orders.
+The runtime does not use Robinhood MCP. That connection may be used manually and read-only for development spot checks, but it is not an application data source or display license and must never be connected to Market Lab order submission. Market Lab creates simulated fills only; it never places brokerage orders.
