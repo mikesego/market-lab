@@ -26,7 +26,7 @@ export default async function StudentHomePage() {
           <strong style={{ fontSize: "clamp(2.3rem,5vw,4rem)" }}>{formatMoney(portfolio.summary.equity)}</strong>
           <span className={portfolio.summary.totalGain >= 0 ? "positive" : "negative"} style={{ display: "block", marginTop: ".35rem", color: portfolio.summary.totalGain >= 0 ? "var(--lime)" : "#ffb2a2", fontWeight: 850 }}>{formatMoney(portfolio.summary.totalGain)} · {formatPercent(portfolio.summary.totalReturnPercent)} since start</span>
           <PortfolioChart currentValue={portfolio.summary.equity} />
-          <p style={{ color: "#b9cbc5", fontSize: ".72rem", margin: 0 }}>Replay values are educational fixtures and may not match today’s market.</p>
+          <p style={{ color: "#b9cbc5", fontSize: ".72rem", margin: 0 }}>Current values use Alpaca’s live IEX feed; all balances and trades are simulated.</p>
         </div>
         <Stat label="Available cash" value={formatMoney(portfolio.summary.availableCash)} note={portfolio.summary.reservedCash ? `${formatMoney(portfolio.summary.reservedCash)} reserved` : "Ready for orders"} />
         <Stat label="Invested" value={formatMoney(portfolio.summary.holdingsValue)} note={`${portfolio.holdings.length} holdings`} />

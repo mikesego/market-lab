@@ -69,7 +69,7 @@ export const games = pgTable(
     name: text("name").notNull(),
     joinCode: text("join_code").notNull(),
     status: text("status").default("draft").notNull(),
-    dataMode: text("data_mode").default("replay").notNull(),
+    dataMode: text("data_mode").default("alpaca_iex").notNull(),
     startingCash: numeric("starting_cash", { precision: 18, scale: 4 })
       .default("100000")
       .notNull(),

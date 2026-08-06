@@ -1,6 +1,6 @@
 # Privacy and real-student launch checklist
 
-The public production hostname may run as an adult-evaluation demo with deterministic replay data. It is not ready for real students until every applicable item below has an accountable owner and written approval.
+The production hostname currently runs as Mike’s sole-user personal demo with live Alpaca Basic IEX data and simulated trading. It must not be shared or used with real students until every applicable item below has an accountable owner and written approval.
 
 ## Data and identity
 
@@ -35,7 +35,7 @@ The public production hostname may run as an adult-evaluation demo with determin
 
 ## Product and classroom readiness
 
-- [ ] Remove/replace the development replay warning only after the provider is licensed and correctly labeled.
+- [ ] Replace the personal-demo warning only after the provider agreement covers the intended users and the feed is correctly labeled.
 - [ ] Confirm all simulated-trading and educational-not-advice disclosures.
 - [ ] Verify financial leaderboard uses only equity/return and learning remains separate.
 - [ ] Confirm aliases-only student leaderboard defaults and teacher visibility controls.

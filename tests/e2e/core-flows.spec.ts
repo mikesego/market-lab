@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 test("public experience is clear and accessible", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Learn investing by doing." })).toBeVisible();
-  await expect(page.getByText(/deterministic practice data/i).first()).toBeVisible();
+  await expect(page.getByText(/live alpaca iex market data/i).first()).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });

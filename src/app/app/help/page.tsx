@@ -2,10 +2,10 @@ import { Clock3, Mail, ShieldAlert } from "lucide-react";
 
 const faqs = [
   ["Why didn’t my order fill?", "The regular session may be closed, or a limit order may not have reached its price. Check the order status and submitted conditions."],
-  ["What counts as my portfolio value?", "Cash plus the current replay value of every holding. Cash reserved for an open order still belongs to the portfolio; it simply cannot be spent twice."],
+  ["What counts as my portfolio value?", "Cash plus the current live IEX value of every holding. Cash reserved for an open order still belongs to the portfolio; it simply cannot be spent twice."],
   ["Does completing a lesson improve my rank?", "No. The leaderboard is based only on portfolio equity. Lessons and recognitions appear in a separate learning record."],
   ["Can I lose real money?", "No. Every balance, order, fill, gain, and loss in Market Lab is simulated."],
-  ["Are these live prices?", "Not in this development build. The app uses a deterministic replay feed so product behavior can be tested before a licensed market-data feed is connected."],
+  ["Are these live prices?", "Yes. This personal demo uses Alpaca Basic’s real-time IEX feed. IEX represents trading on one U.S. exchange, so prices can differ slightly from a consolidated whole-market quote."],
 ];
 
 export default function HelpPage() {

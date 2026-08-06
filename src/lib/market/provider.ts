@@ -1,25 +1,26 @@
 import "server-only";
 
-import { getReplayQuote, getReplayQuotes, getReplaySeries } from "./replay-provider";
+import { getAlpacaQuote, getAlpacaQuotes, getAlpacaSeries } from "./alpaca-provider";
+import type { PricePoint, Quote } from "./types";
 
 export type MarketDataProvider = {
   id: string;
   label: string;
-  isLicensedForStudents: boolean;
-  getQuote: typeof getReplayQuote;
-  getQuotes: typeof getReplayQuotes;
-  getSeries: typeof getReplaySeries;
+  feed: "iex";
+  isLive: boolean;
+  usageMode: "personal-demo";
+  getQuote(symbol: string): Promise<Quote>;
+  getQuotes(symbols?: string[]): Promise<Quote[]>;
+  getSeries(symbol: string, days?: number): Promise<PricePoint[]>;
 };
 
-/**
- * The only active provider during development. A licensed provider can implement
- * this interface without changing trading, portfolio, or UI code.
- */
 export const marketDataProvider: MarketDataProvider = {
-  id: "deterministic-replay-v1",
-  label: "Market Lab Replay",
-  isLicensedForStudents: false,
-  getQuote: getReplayQuote,
-  getQuotes: getReplayQuotes,
-  getSeries: getReplaySeries,
+  id: "alpaca-basic-iex-v1",
+  label: "Alpaca Basic · IEX",
+  feed: "iex",
+  isLive: true,
+  usageMode: "personal-demo",
+  getQuote: getAlpacaQuote,
+  getQuotes: getAlpacaQuotes,
+  getSeries: getAlpacaSeries,
 };

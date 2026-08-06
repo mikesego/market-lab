@@ -151,7 +151,7 @@ async function seed() {
       name: "Fall Market Lab",
       joinCode: "OAK-724",
       status: "active",
-      dataMode: "replay",
+      dataMode: "alpaca_iex",
       startsAt: new Date("2026-08-03T13:30:00.000Z"),
       endsAt: new Date("2026-10-30T20:00:00.000Z"),
       config: {
@@ -293,7 +293,7 @@ async function seed() {
           eventType: "trade_settlement",
           amount: (-invested).toFixed(4),
           runningBalance: cash.toFixed(4),
-          memo: "Seeded replay portfolio purchases",
+          memo: "Seeded simulated portfolio purchases",
           occurredAt: new Date("2026-08-04T15:00:00.000Z"),
         },
       ]);

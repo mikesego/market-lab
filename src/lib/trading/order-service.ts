@@ -15,6 +15,7 @@ import {
   positions,
 } from "@/db/schema";
 import { marketDataProvider } from "@/lib/market/provider";
+import type { Quote } from "@/lib/market/types";
 import {
   applyBuyToPosition,
   applySellToPosition,
@@ -46,13 +47,30 @@ export class TradingError extends Error {
   }
 }
 
+function executionPriceFor(quote: Quote, side: OrderSide) {
+  return side === "buy" ? quote.askPrice ?? quote.price : quote.bidPrice ?? quote.price;
+}
+
+function canExecuteAtQuote(quote: Quote) {
+  return quote.marketState === "open" && !quote.isStale;
+}
+
 export async function placeOrder(input: PlaceOrderInput) {
   const symbol = input.symbol.toUpperCase();
-  const quote = marketDataProvider.getQuote(symbol);
   const [instrument] = await db.select().from(instruments).where(eq(instruments.symbol, symbol)).limit(1);
   if (!instrument || !instrument.isTradable) {
     throw new TradingError("NOT_TRADABLE", "That investment is not available in this season.");
   }
+  let liveQuotes: Quote[];
+  try {
+    liveQuotes = await marketDataProvider.getQuotes();
+  } catch {
+    throw new TradingError("MARKET_DATA_UNAVAILABLE", "Live market data is temporarily unavailable. Your order was not submitted; try again shortly.");
+  }
+  const quotesBySymbol = new Map(liveQuotes.map((quote) => [quote.symbol, quote]));
+  const quote = quotesBySymbol.get(symbol);
+  if (!quote) throw new TradingError("QUOTE_UNAVAILABLE", "A live price is not available for that investment right now.");
+  const executionPrice = executionPriceFor(quote, input.side);
 
   return db.transaction(async (tx) => {
     const [portfolio] = await tx
@@ -88,7 +106,7 @@ export async function placeOrder(input: PlaceOrderInput) {
       orderType: input.orderType,
       quantity: input.quantity,
       limitPrice: input.limitPrice,
-      quote: quote.price,
+      quote: executionPrice,
       cashAvailable: availableCash,
       positionQuantity: availablePosition,
       allowFractional: input.allowFractional,
@@ -102,7 +120,7 @@ export async function placeOrder(input: PlaceOrderInput) {
         .innerJoin(instruments, eq(positions.instrumentId, instruments.id))
         .where(eq(positions.portfolioId, portfolio.id));
       const holdingsValue = allPositions.reduce(
-        (total, row) => total.plus(new Decimal(row.quantity).times(marketDataProvider.getQuote(row.symbol).price)),
+        (total, row) => total.plus(new Decimal(row.quantity).times(quotesBySymbol.get(row.symbol)?.price ?? 0)),
         new Decimal(0),
       );
       const equity = new Decimal(portfolio.cashBalance).plus(holdingsValue);
@@ -117,10 +135,10 @@ export async function placeOrder(input: PlaceOrderInput) {
     }
 
     const shouldFill =
-      quote.marketState === "open" &&
+      canExecuteAtQuote(quote) &&
       (input.orderType === "market" ||
-        (input.side === "buy" && quote.price <= Number(input.limitPrice)) ||
-        (input.side === "sell" && quote.price >= Number(input.limitPrice)));
+        (input.side === "buy" && executionPrice <= Number(input.limitPrice)) ||
+        (input.side === "sell" && executionPrice >= Number(input.limitPrice)));
     const status = shouldFill ? "filled" : quote.marketState === "open" ? "open" : "queued";
     const reservedAmount = !shouldFill && input.side === "buy" ? validation.estimatedTotal : new Decimal(0);
 
@@ -164,7 +182,7 @@ export async function placeOrder(input: PlaceOrderInput) {
       }
     } else {
       const quantity = new Decimal(input.quantity);
-      const amount = quantity.times(quote.price).toDecimalPlaces(4);
+      const amount = quantity.times(executionPrice).toDecimalPlaces(4);
       const nextCash = input.side === "buy"
         ? new Decimal(portfolio.cashBalance).minus(amount)
         : new Decimal(portfolio.cashBalance).plus(amount);
@@ -173,7 +191,7 @@ export async function placeOrder(input: PlaceOrderInput) {
             currentQuantity: position.quantity,
             currentAverageCost: position.averageCost,
             fillQuantity: quantity,
-            fillPrice: quote.price,
+            fillPrice: executionPrice,
           }).realizedGain
         : new Decimal(0);
       await tx
@@ -191,7 +209,7 @@ export async function placeOrder(input: PlaceOrderInput) {
           currentQuantity: position?.quantity ?? 0,
           currentAverageCost: position?.averageCost ?? 0,
           fillQuantity: quantity,
-          fillPrice: quote.price,
+          fillPrice: executionPrice,
         });
         await tx
           .insert(positions)
@@ -214,7 +232,7 @@ export async function placeOrder(input: PlaceOrderInput) {
           currentQuantity: position.quantity,
           currentAverageCost: position.averageCost,
           fillQuantity: quantity,
-          fillPrice: quote.price,
+          fillPrice: executionPrice,
         });
         await tx
           .update(positions)
@@ -233,8 +251,8 @@ export async function placeOrder(input: PlaceOrderInput) {
           portfolioId: portfolio.id,
           instrumentId: instrument.id,
           quantity: input.quantity,
-          price: quote.price.toFixed(6),
-          providerEventId: `replay:${order.id}:1`,
+          price: executionPrice.toFixed(6),
+          providerEventId: `${quote.providerEventId}:${order.id}`,
         })
         .returning();
       await tx.insert(cashLedger).values({
@@ -244,7 +262,7 @@ export async function placeOrder(input: PlaceOrderInput) {
         runningBalance: nextCash.toFixed(4),
         referenceType: "fill",
         referenceId: fill.id,
-        memo: `${input.side === "buy" ? "Bought" : "Sold"} ${input.quantity} ${symbol} at $${quote.price.toFixed(2)}`,
+        memo: `${input.side === "buy" ? "Bought" : "Sold"} ${input.quantity} ${symbol} at $${executionPrice.toFixed(2)}`,
       });
     }
 
@@ -296,17 +314,21 @@ export async function processEligibleOrdersForPortfolio(portfolioId: string) {
     .where(and(eq(orders.portfolioId, portfolioId), inArray(orders.status, ["queued", "open"])))
     .limit(20);
 
+  const liveQuotes = await marketDataProvider.getQuotes(pending.map((order) => order.symbol));
+  const quotesBySymbol = new Map(liveQuotes.map((quote) => [quote.symbol, quote]));
+
   for (const pendingOrder of pending) {
-    const quote = marketDataProvider.getQuote(pendingOrder.symbol);
-    if (quote.marketState !== "open") continue;
+    const quote = quotesBySymbol.get(pendingOrder.symbol);
+    if (!quote || !canExecuteAtQuote(quote)) continue;
 
     await db.transaction(async (tx) => {
       const [order] = await tx.select().from(orders).where(eq(orders.id, pendingOrder.id)).for("update").limit(1);
       if (!order || !["queued", "open"].includes(order.status)) return;
+      const executionPrice = executionPriceFor(quote, order.side as OrderSide);
       const limitReached =
         order.orderType === "market" ||
-        (order.side === "buy" && quote.price <= Number(order.limitPrice)) ||
-        (order.side === "sell" && quote.price >= Number(order.limitPrice));
+        (order.side === "buy" && executionPrice <= Number(order.limitPrice)) ||
+        (order.side === "sell" && executionPrice >= Number(order.limitPrice));
       if (!limitReached) {
         if (order.status === "queued") await tx.update(orders).set({ status: "open", updatedAt: new Date() }).where(eq(orders.id, order.id));
         return;
@@ -316,7 +338,7 @@ export async function processEligibleOrdersForPortfolio(portfolioId: string) {
       if (!portfolio) return;
       const [position] = await tx.select().from(positions).where(and(eq(positions.portfolioId, portfolio.id), eq(positions.instrumentId, order.instrumentId))).limit(1);
       const quantity = new Decimal(order.quantity).minus(order.filledQuantity);
-      const amount = quantity.times(quote.price).toDecimalPlaces(4);
+      const amount = quantity.times(executionPrice).toDecimalPlaces(4);
       const released = new Decimal(order.reservedAmount);
       const nextReserved = Decimal.max(0, new Decimal(portfolio.reservedCash).minus(released));
 
@@ -334,19 +356,19 @@ export async function processEligibleOrdersForPortfolio(portfolioId: string) {
       const nextCash = order.side === "buy" ? new Decimal(portfolio.cashBalance).minus(amount) : new Decimal(portfolio.cashBalance).plus(amount);
       let realized = new Decimal(0);
       if (order.side === "buy") {
-        const next = applyBuyToPosition({ currentQuantity: position?.quantity ?? 0, currentAverageCost: position?.averageCost ?? 0, fillQuantity: quantity, fillPrice: quote.price });
+        const next = applyBuyToPosition({ currentQuantity: position?.quantity ?? 0, currentAverageCost: position?.averageCost ?? 0, fillQuantity: quantity, fillPrice: executionPrice });
         await tx.insert(positions).values({ portfolioId: portfolio.id, instrumentId: order.instrumentId, quantity: next.quantity.toFixed(8), averageCost: next.averageCost.toFixed(6) }).onConflictDoUpdate({ target: [positions.portfolioId, positions.instrumentId], set: { quantity: next.quantity.toFixed(8), averageCost: next.averageCost.toFixed(6), updatedAt: new Date() } });
       } else if (position) {
-        const next = applySellToPosition({ currentQuantity: position.quantity, currentAverageCost: position.averageCost, fillQuantity: quantity, fillPrice: quote.price });
+        const next = applySellToPosition({ currentQuantity: position.quantity, currentAverageCost: position.averageCost, fillQuantity: quantity, fillPrice: executionPrice });
         realized = next.realizedGain;
         await tx.update(positions).set({ quantity: next.quantity.toFixed(8), realizedGain: new Decimal(position.realizedGain).plus(realized).toFixed(4), updatedAt: new Date() }).where(and(eq(positions.portfolioId, portfolio.id), eq(positions.instrumentId, order.instrumentId)));
       }
 
       await tx.update(portfolios).set({ cashBalance: nextCash.toFixed(4), reservedCash: nextReserved.toFixed(4), realizedGain: new Decimal(portfolio.realizedGain).plus(realized).toFixed(4), version: portfolio.version + 1, updatedAt: new Date() }).where(eq(portfolios.id, portfolio.id));
       await tx.update(orders).set({ status: "filled", filledQuantity: order.quantity, reservedAmount: "0", updatedAt: new Date() }).where(eq(orders.id, order.id));
-      const [fill] = await tx.insert(fills).values({ orderId: order.id, portfolioId: portfolio.id, instrumentId: order.instrumentId, quantity: quantity.toFixed(8), price: quote.price.toFixed(6), providerEventId: `replay:${order.id}:1` }).onConflictDoNothing().returning();
+      const [fill] = await tx.insert(fills).values({ orderId: order.id, portfolioId: portfolio.id, instrumentId: order.instrumentId, quantity: quantity.toFixed(8), price: executionPrice.toFixed(6), providerEventId: `${quote.providerEventId}:${order.id}` }).onConflictDoNothing().returning();
       if (fill) {
-        await tx.insert(cashLedger).values({ portfolioId: portfolio.id, eventType: "trade_settlement", amount: (order.side === "buy" ? amount.negated() : amount).toFixed(4), runningBalance: nextCash.toFixed(4), referenceType: "fill", referenceId: fill.id, memo: `${order.side === "buy" ? "Bought" : "Sold"} ${quantity.toFixed()} ${pendingOrder.symbol} at $${quote.price.toFixed(2)}` });
+        await tx.insert(cashLedger).values({ portfolioId: portfolio.id, eventType: "trade_settlement", amount: (order.side === "buy" ? amount.negated() : amount).toFixed(4), runningBalance: nextCash.toFixed(4), referenceType: "fill", referenceId: fill.id, memo: `${order.side === "buy" ? "Bought" : "Sold"} ${quantity.toFixed()} ${pendingOrder.symbol} at $${executionPrice.toFixed(2)}` });
       }
     });
   }
