@@ -35,6 +35,7 @@ export const getStudentSession = cache(async function getStudentSession() {
       endsAt: games.endsAt,
       allowFractional: games.allowFractional,
       maxPositionPercent: games.maxPositionPercent,
+      gameConfig: games.config,
       portfolioId: portfolios.id,
       portfolioCreatedAt: portfolios.createdAt,
       cashBalance: portfolios.cashBalance,

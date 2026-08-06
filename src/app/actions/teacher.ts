@@ -8,7 +8,10 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import {
+  assignmentSubmissions,
+  assignments,
   auditEvents,
+  lessons,
   classrooms,
   games,
   organizationMemberships,
@@ -22,6 +25,18 @@ import { hashPin } from "@/lib/security/student-credentials";
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+}
+
+function revalidateTeacherGame(gameId: string) {
+  revalidatePath(`/teacher/games/${gameId}`, "layout");
+  revalidatePath("/teacher/games");
+}
+
+async function requireOwnedGame(gameId: string) {
+  const { adult } = await requireTeacher();
+  const [game] = await db.select().from(games).where(and(eq(games.id, gameId), eq(games.ownerId, adult.id))).limit(1);
+  if (!game) throw new Error("Season not found.");
+  return { adult, game };
 }
 
 async function uniqueJoinCode() {
@@ -141,19 +156,163 @@ export async function addStudent(formData: FormData) {
     });
   });
 
-  revalidatePath(`/teacher/games/${game.id}`);
+  revalidateTeacherGame(game.id);
 }
 
 export async function setSeasonStatus(formData: FormData) {
   const { adult } = await requireTeacher();
   const parsed = z.object({
     gameId: z.string().uuid(),
-    status: z.enum(["active", "paused"]),
+    status: z.enum(["active", "paused", "archived"]),
   }).parse({ gameId: formData.get("gameId"), status: formData.get("status") });
   const [game] = await db.update(games).set({ status: parsed.status, updatedAt: new Date() })
     .where(and(eq(games.id, parsed.gameId), eq(games.ownerId, adult.id)))
     .returning();
   if (!game) throw new Error("Season not found.");
   await db.insert(auditEvents).values({ actorType: "adult", actorId: adult.id, action: `game_${parsed.status}`, targetType: "game", targetId: game.id, gameId: game.id });
-  revalidatePath(`/teacher/games/${game.id}`);
+  revalidateTeacherGame(game.id);
+}
+
+export async function updateSeasonSettings(formData: FormData) {
+  const parsed = z.object({
+    gameId: z.string().uuid(),
+    name: z.string().trim().min(2).max(100),
+    startsAt: z.coerce.date(),
+    endsAt: z.coerce.date(),
+    maxPositionPercent: z.coerce.number().min(10).max(100),
+    leaderboardVisibility: z.enum(["class_aliases", "teacher_only", "hidden"]),
+  }).parse({
+    gameId: formData.get("gameId"),
+    name: formData.get("name"),
+    startsAt: formData.get("startsAt"),
+    endsAt: formData.get("endsAt"),
+    maxPositionPercent: formData.get("maxPositionPercent"),
+    leaderboardVisibility: formData.get("leaderboardVisibility"),
+  });
+  if (parsed.endsAt <= parsed.startsAt) throw new Error("End date must be after the start date.");
+  const { adult, game } = await requireOwnedGame(parsed.gameId);
+  const config = {
+    ...game.config,
+    rationaleRequired: formData.get("rationaleRequired") === "on",
+    leaderboardVisibility: parsed.leaderboardVisibility,
+  };
+  await db.transaction(async (tx) => {
+    await tx.update(games).set({
+      name: parsed.name,
+      startsAt: parsed.startsAt,
+      endsAt: parsed.endsAt,
+      maxPositionPercent: String(parsed.maxPositionPercent),
+      allowFractional: formData.get("allowFractional") === "on",
+      config,
+      updatedAt: new Date(),
+    }).where(eq(games.id, game.id));
+    await tx.insert(auditEvents).values({
+      actorType: "adult",
+      actorId: adult.id,
+      action: "game_settings_updated",
+      targetType: "game",
+      targetId: game.id,
+      gameId: game.id,
+    });
+  });
+  revalidateTeacherGame(game.id);
+}
+
+export async function createAssignment(formData: FormData) {
+  const parsed = z.object({
+    gameId: z.string().uuid(),
+    title: z.string().trim().min(3).max(120),
+    instructions: z.string().trim().min(10).max(2000),
+    type: z.enum(["reflection", "research", "comparison"]),
+    dueAt: z.string().min(1),
+  }).parse({
+    gameId: formData.get("gameId"),
+    title: formData.get("title"),
+    instructions: formData.get("instructions"),
+    type: formData.get("type"),
+    dueAt: formData.get("dueAt"),
+  });
+  const { adult, game } = await requireOwnedGame(parsed.gameId);
+  const dueAt = new Date(`${parsed.dueAt}T23:59:59`);
+  if (Number.isNaN(dueAt.getTime())) throw new Error("Choose a valid due date.");
+  const [assignment] = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(assignments).values({
+      gameId: game.id,
+      classroomId: (await tx.select({ id: classrooms.id }).from(classrooms).where(eq(classrooms.gameId, game.id)).limit(1))[0]?.id,
+      title: parsed.title,
+      instructions: parsed.instructions,
+      type: parsed.type,
+      dueAt,
+    }).returning();
+    await tx.insert(auditEvents).values({ actorType: "adult", actorId: adult.id, action: "assignment_created", targetType: "assignment", targetId: created.id, gameId: game.id });
+    return [created];
+  });
+  revalidateTeacherGame(game.id);
+  revalidatePath("/app/assignments");
+  redirect(`/teacher/games/${game.id}/assignments/${assignment.id}`);
+}
+
+export async function reviewAssignmentSubmission(formData: FormData) {
+  const parsed = z.object({
+    gameId: z.string().uuid(),
+    assignmentId: z.string().uuid(),
+    studentId: z.string().uuid(),
+    feedback: z.string().trim().max(1200),
+  }).parse({
+    gameId: formData.get("gameId"),
+    assignmentId: formData.get("assignmentId"),
+    studentId: formData.get("studentId"),
+    feedback: formData.get("feedback"),
+  });
+  const { adult, game } = await requireOwnedGame(parsed.gameId);
+  const [assignment] = await db.select({ id: assignments.id }).from(assignments).where(and(eq(assignments.id, parsed.assignmentId), eq(assignments.gameId, game.id))).limit(1);
+  const [student] = await db.select({ id: students.id }).from(students).where(and(eq(students.id, parsed.studentId), eq(students.gameId, game.id))).limit(1);
+  if (!assignment || !student) throw new Error("Submission not found.");
+  const [submission] = await db.update(assignmentSubmissions).set({
+    teacherFeedback: parsed.feedback || null,
+    status: "reviewed",
+    reviewedAt: new Date(),
+  }).where(and(eq(assignmentSubmissions.assignmentId, assignment.id), eq(assignmentSubmissions.studentId, student.id))).returning();
+  if (!submission) throw new Error("This student has not submitted work yet.");
+  await db.insert(auditEvents).values({ actorType: "adult", actorId: adult.id, action: "assignment_reviewed", targetType: "assignment", targetId: assignment.id, gameId: game.id, metadata: { studentId: student.id } });
+  revalidateTeacherGame(game.id);
+  revalidatePath("/app/assignments");
+}
+
+export async function setStudentStatus(formData: FormData) {
+  const parsed = z.object({ gameId: z.string().uuid(), studentId: z.string().uuid(), status: z.enum(["active", "inactive"]) }).parse({
+    gameId: formData.get("gameId"), studentId: formData.get("studentId"), status: formData.get("status"),
+  });
+  const { adult, game } = await requireOwnedGame(parsed.gameId);
+  const [student] = await db.update(students).set({ status: parsed.status, updatedAt: new Date() }).where(and(eq(students.id, parsed.studentId), eq(students.gameId, game.id))).returning();
+  if (!student) throw new Error("Student not found.");
+  await db.insert(auditEvents).values({ actorType: "adult", actorId: adult.id, action: "student_status_changed", targetType: "student", targetId: student.id, gameId: game.id, metadata: { status: parsed.status } });
+  revalidateTeacherGame(game.id);
+}
+
+export async function resetStudentPin(formData: FormData) {
+  const parsed = z.object({ gameId: z.string().uuid(), studentId: z.string().uuid(), pin: z.string().regex(/^\d{4,8}$/) }).parse({
+    gameId: formData.get("gameId"), studentId: formData.get("studentId"), pin: formData.get("pin"),
+  });
+  const { adult, game } = await requireOwnedGame(parsed.gameId);
+  const [student] = await db.update(students).set({ pinHash: await hashPin(parsed.pin), updatedAt: new Date() }).where(and(eq(students.id, parsed.studentId), eq(students.gameId, game.id))).returning();
+  if (!student) throw new Error("Student not found.");
+  await db.insert(auditEvents).values({ actorType: "adult", actorId: adult.id, action: "student_pin_reset", targetType: "student", targetId: student.id, gameId: game.id });
+  revalidateTeacherGame(game.id);
+}
+
+export async function setLessonAvailability(formData: FormData) {
+  const parsed = z.object({ gameId: z.string().uuid(), lessonId: z.string().min(2).max(80) }).parse({ gameId: formData.get("gameId"), lessonId: formData.get("lessonId") });
+  const { adult, game } = await requireOwnedGame(parsed.gameId);
+  const lessonRows = await db.select({ id: lessons.id }).from(lessons);
+  if (!lessonRows.some((lesson) => lesson.id === parsed.lessonId)) throw new Error("Lesson not found.");
+  const current = Array.isArray(game.config.enabledLessonIds)
+    ? new Set(game.config.enabledLessonIds.filter((value): value is string => typeof value === "string"))
+    : new Set(lessonRows.map((lesson) => lesson.id));
+  if (formData.get("enabled") === "true") current.add(parsed.lessonId);
+  else current.delete(parsed.lessonId);
+  await db.update(games).set({ config: { ...game.config, enabledLessonIds: [...current] }, updatedAt: new Date() }).where(eq(games.id, game.id));
+  await db.insert(auditEvents).values({ actorType: "adult", actorId: adult.id, action: "lesson_availability_updated", targetType: "lesson", targetId: parsed.lessonId, gameId: game.id, metadata: { enabled: current.has(parsed.lessonId) } });
+  revalidateTeacherGame(game.id);
+  revalidatePath("/app/learn");
 }

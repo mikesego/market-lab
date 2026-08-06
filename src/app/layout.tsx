@@ -41,7 +41,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${manrope.variable} ${newsreader.variable}`}>
+    <html lang="en" className={`${manrope.variable} ${newsreader.variable}`} data-scroll-behavior="smooth">
       <body>
         <ClerkProvider
           dynamic

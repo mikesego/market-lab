@@ -5,8 +5,8 @@ import { db } from "@/db";
 import { adultUsers } from "@/db/schema";
 
 export async function requireTeacher() {
-  const { isAuthenticated, userId } = await auth();
-  if (!isAuthenticated || !userId) throw new Error("Unauthorized");
+  const { isAuthenticated, userId, redirectToSignIn } = await auth();
+  if (!isAuthenticated || !userId) return redirectToSignIn();
   const clerkUser = await currentUser();
   const email = clerkUser?.primaryEmailAddress?.emailAddress ?? null;
   const displayName = clerkUser

@@ -22,7 +22,7 @@ export default async function StudentLayout({ children }: LayoutProps<"/app">) {
         <div className="sidebar-season card" style={{ marginTop: "1.4rem", padding: ".9rem" }}>
           <span className="eyebrow">Active season</span>
           <strong style={{ display: "block", margin: ".5rem 0 .2rem", fontSize: ".84rem" }}>{session.gameName}</strong>
-          <span className="muted" style={{ fontSize: ".7rem" }}>Ends Oct 30 · Code {session.joinCode}</span>
+          <span className="muted" style={{ fontSize: ".7rem" }}>Ends {session.endsAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · Code {session.joinCode}</span>
         </div>
         <form action={signOutStudent} style={{ marginTop: ".9rem" }}>
           <button className="button-quiet" type="submit"><LogOut size={16} /> Sign out</button>

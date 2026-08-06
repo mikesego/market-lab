@@ -3,7 +3,7 @@ import { ArrowRight, BookOpen, CalendarDays, Lightbulb, WalletCards } from "luci
 
 import { HoldingTable } from "@/components/holding-table";
 import { PortfolioChart } from "@/components/portfolio-chart";
-import { getLeaderboardDTO, getStudentPortfolioDTO } from "@/lib/data/student";
+import { getLeaderboardDTO, getStudentAssignmentsDTO, getStudentPortfolioDTO } from "@/lib/data/student";
 import { formatMoney, formatPercent } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -11,12 +11,17 @@ export const dynamic = "force-dynamic";
 export default async function StudentHomePage() {
   const portfolio = await getStudentPortfolioDTO();
   if (!portfolio) return null;
-  const leaderboard = await getLeaderboardDTO(portfolio.session.gameId);
+  const showLeaderboard = portfolio.session.gameConfig.leaderboardVisibility !== "teacher_only" && portfolio.session.gameConfig.leaderboardVisibility !== "hidden";
+  const [leaderboard, assignmentData] = await Promise.all([
+    showLeaderboard ? getLeaderboardDTO(portfolio.session.gameId, Number(portfolio.session.startingCash)) : Promise.resolve([]),
+    getStudentAssignmentsDTO(),
+  ]);
   const currentRank = leaderboard.find((row) => row.studentId === portfolio.session.studentId);
+  const nextAssignment = assignmentData?.assignments.find((assignment) => !assignment.submission) ?? assignmentData?.assignments[0];
   return (
     <>
       <div className="page-title">
-        <div><span className="eyebrow">Wednesday, August 5</span><h1>Good afternoon, {portfolio.session.displayName.split(" ")[0]}.</h1><p className="muted" style={{ margin: ".6rem 0 0" }}>Your portfolio is ready. What deserves your attention today?</p></div>
+        <div><span className="eyebrow">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</span><h1>Good {daypart()}, {portfolio.session.displayName.split(" ")[0]}.</h1><p className="muted" style={{ margin: ".6rem 0 0" }}>Your portfolio is ready. What deserves your attention today?</p></div>
         <Link className="button-primary" href="/app/discover">Research an idea <ArrowRight size={17} /></Link>
       </div>
 
@@ -30,20 +35,20 @@ export default async function StudentHomePage() {
         </div>
         <Stat label="Available cash" value={formatMoney(portfolio.summary.availableCash)} note={portfolio.summary.reservedCash ? `${formatMoney(portfolio.summary.reservedCash)} reserved` : "Ready for orders"} />
         <Stat label="Invested" value={formatMoney(portfolio.summary.holdingsValue)} note={`${portfolio.holdings.length} holdings`} />
-        <Stat label="Class rank" value={currentRank ? `#${currentRank.rank}` : "—"} note={`of ${leaderboard.length} portfolios`} />
+        <Stat label="Class rank" value={showLeaderboard && currentRank ? `#${currentRank.rank}` : "Hidden"} note={showLeaderboard ? `of ${leaderboard.length} portfolios` : "Your teacher controls standings visibility"} />
         <Stat label="Unrealized gain" value={formatMoney(portfolio.summary.unrealizedGain)} note="On current holdings" tone={portfolio.summary.unrealizedGain >= 0 ? "positive" : "negative"} />
       </section>
 
       <div className="portfolio-layout">
         <HoldingTable holdings={portfolio.holdings} />
         <aside className="side-stack">
-          <div className="card" style={{ padding: "1.2rem" }}>
+          {showLeaderboard ? <div className="card" style={{ padding: "1.2rem" }}>
             <span className="eyebrow">Next best step</span>
             <div style={{ width: "2.8rem", height: "2.8rem", borderRadius: ".65rem", background: "var(--sky)", display: "grid", placeItems: "center", border: "1px solid var(--ink)", margin: "1rem 0" }}><BookOpen /></div>
             <h2 style={{ fontSize: "1.1rem", margin: "0 0 .45rem" }}>Don’t carry every egg in one basket</h2>
             <p className="muted" style={{ fontSize: ".82rem", lineHeight: 1.55 }}>Learn how diversification changes the range of possible outcomes.</p>
             <Link className="button-secondary" href="/app/learn" style={{ width: "100%", marginTop: ".7rem" }}>Continue learning</Link>
-          </div>
+          </div> : <div className="card" style={{ padding: "1.2rem" }}><span className="eyebrow">Class standings</span><h2 style={{ fontSize: "1.1rem", margin: ".8rem 0 .45rem" }}>Leaderboard hidden</h2><p className="muted" style={{ fontSize: ".8rem", lineHeight: 1.6 }}>Your teacher has chosen to keep class rankings private for now. Your own portfolio value and return remain visible.</p></div>}
           <div className="card" style={{ padding: "1.2rem" }}>
             <span className="eyebrow">Class leaders</span>
             <div className="compact-list" style={{ marginTop: ".7rem" }}>{leaderboard.slice(0, 5).map((row) => <div className="compact-row" key={row.studentId}><div style={{ display: "flex", gap: ".65rem", alignItems: "center" }}><span className="rank-number">{row.rank}</span><span><strong style={{ display: "block", fontSize: ".8rem" }}>{row.displayName}</strong><span className="muted" style={{ fontSize: ".68rem" }}>{formatPercent(row.returnPercent)}</span></span></div><strong style={{ fontSize: ".78rem" }}>{formatMoney(row.equity, { cents: false })}</strong></div>)}</div>
@@ -55,10 +60,10 @@ export default async function StudentHomePage() {
         </aside>
       </div>
 
-      <section className="card" style={{ marginTop: "1rem", padding: "1.2rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
-        <div style={{ display: "flex", gap: ".9rem", alignItems: "center" }}><span style={{ width: "2.7rem", height: "2.7rem", display: "grid", placeItems: "center", background: "var(--coral)", border: "1px solid var(--ink)", borderRadius: ".7rem" }}><CalendarDays /></span><div><span className="eyebrow">Assignment · Due Aug 14</span><strong style={{ display: "block", marginTop: ".3rem" }}>Explain one portfolio decision</strong></div></div>
-        <Link className="button-secondary" href="/app/journal"><WalletCards size={17} /> Open your journal</Link>
-      </section>
+      {nextAssignment ? <section className="card" style={{ marginTop: "1rem", padding: "1.2rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+        <div style={{ display: "flex", gap: ".9rem", alignItems: "center" }}><span style={{ width: "2.7rem", height: "2.7rem", display: "grid", placeItems: "center", background: "var(--coral)", border: "1px solid var(--ink)", borderRadius: ".7rem" }}><CalendarDays /></span><div><span className="eyebrow">Assignment{nextAssignment.dueAt ? ` · Due ${nextAssignment.dueAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span><strong style={{ display: "block", marginTop: ".3rem" }}>{nextAssignment.title}</strong></div></div>
+        <Link className="button-secondary" href="/app/assignments"><WalletCards size={17} /> Open assignment</Link>
+      </section> : null}
     </>
   );
 }
@@ -66,3 +71,5 @@ export default async function StudentHomePage() {
 function Stat({ label, value, note, tone }: { label: string; value: string; note: string; tone?: "positive" | "negative" }) {
   return <div className="card stat-card"><span className="eyebrow">{label}</span><strong className={tone}>{value}</strong><span className="muted" style={{ fontSize: ".74rem" }}>{note}</span></div>;
 }
+
+function daypart() { const hour = new Date().getHours(); return hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening"; }

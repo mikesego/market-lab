@@ -40,7 +40,7 @@ export default async function TradePage({ params }: PageProps<"/app/trade/[symbo
         <div className="card" style={{ padding: "1.25rem" }}><div style={{ display: "flex", gap: ".8rem", alignItems: "start" }}><BookMarked size={21} /><div><strong>Market vs. limit</strong><p className="muted" style={{ fontSize: ".82rem", lineHeight: 1.6 }}>A market order prioritizes getting the trade done. A limit order prioritizes your chosen price and may never fill.</p></div></div></div>
         <div className="card" style={{ padding: "1.25rem", background: "#ffe9e1" }}><div style={{ display: "flex", gap: ".8rem", alignItems: "start" }}><ShieldAlert size={21} /><div><strong>Concentration guardrail</strong><p className="muted" style={{ fontSize: ".82rem", lineHeight: 1.6 }}>No single investment can exceed {Number(position.session.maxPositionPercent).toFixed(0)}% of portfolio value in this season.</p></div></div></div>
       </section>
-      <TradeForm symbol={symbol} price={quote.price} marketState={quote.marketState} availableCash={portfolio.summary.availableCash} ownedQuantity={owned} allowFractional={position.session.allowFractional && asset.fractionable} />
+      <TradeForm symbol={symbol} price={quote.price} marketState={quote.marketState} availableCash={portfolio.summary.availableCash} ownedQuantity={owned} allowFractional={position.session.allowFractional && asset.fractionable} requireRationale={position.session.gameConfig.rationaleRequired !== false} />
     </div>
   </>;
 }

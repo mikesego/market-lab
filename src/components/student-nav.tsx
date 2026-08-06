@@ -22,6 +22,7 @@ const links = [
   ["/app/portfolio", "Portfolio", Landmark],
   ["/app/orders", "Orders", ClipboardList],
   ["/app/learn", "Learn", BookOpen],
+  ["/app/assignments", "Assignments", ClipboardList],
   ["/app/journal", "Journal", NotebookPen],
   ["/app/season", "Season", Trophy],
   ["/app/help", "Help", CircleHelp],

@@ -56,6 +56,10 @@ test("student can sign in and submit a simulated order", async ({ page }) => {
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByRole("heading", { name: /Good afternoon, Avery/i })).toBeVisible();
 
+  await page.getByRole("link", { name: "Assignments" }).click();
+  await expect(page.getByRole("heading", { name: "Assignments" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Explain one portfolio decision" })).toBeVisible();
+
   await page.goto("/app/discover");
   await page.getByRole("button", { name: "ETFs", exact: true }).click();
   await expect(page.locator('a[href="/app/stocks/SPY"]')).toBeVisible();

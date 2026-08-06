@@ -16,7 +16,7 @@ const tradeSchema = z.object({
   orderType: z.enum(["market", "limit"]),
   quantity: z.string().trim().min(1).max(20),
   limitPrice: z.string().trim().max(20).optional(),
-  rationale: z.string().trim().min(20, "Write at least one complete reason (20 characters). ").max(600),
+  rationale: z.string().trim().max(600),
   confidence: z.coerce.number().int().min(1).max(5),
 });
 
@@ -35,6 +35,10 @@ export async function submitTrade(_previous: TradeState, formData: FormData): Pr
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check the order details and try again." };
   }
+  const rationaleRequired = session.gameConfig.rationaleRequired !== false;
+  if (rationaleRequired && parsed.data.rationale.length < 20) {
+    return { error: "Write at least one complete reason (20 characters)." };
+  }
 
   try {
     const result = await placeOrder({
@@ -46,7 +50,7 @@ export async function submitTrade(_previous: TradeState, formData: FormData): Pr
       orderType: parsed.data.orderType,
       quantity: parsed.data.quantity,
       limitPrice: parsed.data.limitPrice,
-      rationale: parsed.data.rationale,
+      rationale: parsed.data.rationale || "Rationale was optional for this season.",
       confidence: parsed.data.confidence,
       allowFractional: session.allowFractional,
       maxPositionPercent: session.maxPositionPercent,

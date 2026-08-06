@@ -6,6 +6,8 @@ import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   achievements,
+  assignmentSubmissions,
+  assignments,
   instruments,
   journalEntries,
   lessonProgress,
@@ -19,6 +21,7 @@ import {
   watchlistItems,
 } from "@/db/schema";
 import { getStudentSession } from "@/lib/auth/student-session";
+import { getEnabledLessonIds } from "@/lib/learning/config";
 import { marketDataProvider } from "@/lib/market/provider";
 import { buildPortfolioHistory } from "@/lib/portfolio/history";
 import { totalReturnPercent } from "@/lib/trading/calculations";
@@ -184,15 +187,31 @@ export async function getLearningDTO() {
       .where(eq(studentAchievements.studentId, session.studentId)),
   ]);
   const progressByLesson = new Map(progressRows.map((row) => [row.lessonId, row]));
+  const enabledLessonIds = getEnabledLessonIds(session.gameConfig, lessonRows.map((lesson) => lesson.id));
+  const enabledLessons = lessonRows.filter((lesson) => enabledLessonIds.has(lesson.id));
   return {
     session,
-    lessons: lessonRows.map((lesson) => ({ ...lesson, progress: progressByLesson.get(lesson.id) ?? null })),
+    lessons: enabledLessons.map((lesson) => ({ ...lesson, progress: progressByLesson.get(lesson.id) ?? null })),
     achievements: awardRows,
-    completedCount: progressRows.filter((row) => row.status === "completed").length,
+    completedCount: progressRows.filter((row) => row.status === "completed" && enabledLessonIds.has(row.lessonId)).length,
   };
 }
 
-export async function getLeaderboardDTO(gameId: string) {
+export async function getStudentAssignmentsDTO() {
+  const session = await getStudentSession();
+  if (!session) return null;
+  const [assignmentRows, submissionRows] = await Promise.all([
+    db.select().from(assignments).where(eq(assignments.gameId, session.gameId)).orderBy(asc(assignments.dueAt)),
+    db.select().from(assignmentSubmissions).where(eq(assignmentSubmissions.studentId, session.studentId)),
+  ]);
+  const submissionsByAssignment = new Map(submissionRows.map((submission) => [submission.assignmentId, submission]));
+  return {
+    session,
+    assignments: assignmentRows.map((assignment) => ({ ...assignment, submission: submissionsByAssignment.get(assignment.id) ?? null })),
+  };
+}
+
+export async function getLeaderboardDTO(gameId: string, startingCash = 100000) {
   const [portfolioRows, positionRows] = await Promise.all([
     db
       .select({
@@ -234,7 +253,7 @@ export async function getLeaderboardDTO(gameId: string) {
         displayName: row.displayName,
         avatarKey: row.avatarKey,
         equity: equity.toDecimalPlaces(2).toNumber(),
-        returnPercent: totalReturnPercent(equity, 100000).toNumber(),
+        returnPercent: totalReturnPercent(equity, startingCash).toNumber(),
       };
     })
     .sort((a, b) => b.equity - a.equity)
