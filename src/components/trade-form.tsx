@@ -12,12 +12,14 @@ export function TradeForm({
   marketState,
   availableCash,
   ownedQuantity,
+  allowFractional,
 }: {
   symbol: string;
   price: number;
   marketState: string;
   availableCash: number;
   ownedQuantity: number;
+  allowFractional: boolean;
 }) {
   const [state, action, pending] = useActionState(submitTrade, {} as TradeState);
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -35,7 +37,7 @@ export function TradeForm({
       <label><input type="radio" name="side" value="sell" checked={side === "sell"} onChange={() => setSide("sell")} /><span>Sell</span></label>
     </div>
     <div className="field"><label htmlFor="orderType">Order type</label><select className="select" id="orderType" name="orderType" value={orderType} onChange={(event) => setOrderType(event.target.value as "market" | "limit")}><option value="market">Market order</option><option value="limit">Limit order</option></select></div>
-    <div className="field"><label htmlFor="quantity">Shares</label><input className="input" id="quantity" name="quantity" type="number" inputMode="decimal" min="0.000001" step="0.000001" value={quantity} onChange={(event) => setQuantity(event.target.value)} required /></div>
+    <div className="field"><label htmlFor="quantity">Shares</label><input className="input" id="quantity" name="quantity" type="number" inputMode={allowFractional ? "decimal" : "numeric"} min={allowFractional ? "0.000001" : "1"} step={allowFractional ? "0.000001" : "1"} value={quantity} onChange={(event) => setQuantity(event.target.value)} required />{!allowFractional ? <span className="field-hint">This investment trades in whole shares.</span> : null}</div>
     {orderType === "limit" ? <div className="field"><label htmlFor="limitPrice">Limit price</label><input className="input" id="limitPrice" name="limitPrice" type="number" inputMode="decimal" min="0.01" step="0.01" value={limit} onChange={(event) => setLimit(event.target.value)} required /></div> : null}
     <div className="field"><label htmlFor="rationale">Why does this decision make sense?</label><textarea className="textarea" id="rationale" name="rationale" minLength={20} maxLength={600} placeholder="I expect… because… One risk or fact that could change my mind is…" required /></div>
     <div className="field"><label htmlFor="confidence">Confidence (1 = unsure, 5 = very confident)</label><input id="confidence" name="confidence" type="range" min="1" max="5" defaultValue="3" /></div>

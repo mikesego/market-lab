@@ -11,7 +11,7 @@ import { cancelOrder, placeOrder, processEligibleOrdersForPortfolio, TradingErro
 export type TradeState = { error?: string };
 
 const tradeSchema = z.object({
-  symbol: z.string().trim().regex(/^[A-Za-z.]{1,8}$/),
+  symbol: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9.-]{0,14}$/),
   side: z.enum(["buy", "sell"]),
   orderType: z.enum(["market", "limit"]),
   quantity: z.string().trim().min(1).max(20),

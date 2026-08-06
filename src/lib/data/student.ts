@@ -1,7 +1,7 @@
 import "server-only";
 
 import Decimal from "decimal.js";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -11,6 +11,7 @@ import {
   lessonProgress,
   lessons,
   orders,
+  portfolioEquitySnapshots,
   portfolios,
   positions,
   studentAchievements,
@@ -19,6 +20,7 @@ import {
 } from "@/db/schema";
 import { getStudentSession } from "@/lib/auth/student-session";
 import { marketDataProvider } from "@/lib/market/provider";
+import { buildPortfolioHistory } from "@/lib/portfolio/history";
 import { totalReturnPercent } from "@/lib/trading/calculations";
 
 export async function getStudentPortfolioDTO() {
@@ -38,7 +40,7 @@ export async function getStudentPortfolioDTO() {
       })
       .from(positions)
       .innerJoin(instruments, eq(positions.instrumentId, instruments.id))
-      .where(eq(positions.portfolioId, session.portfolioId))
+      .where(and(eq(positions.portfolioId, session.portfolioId), gt(positions.quantity, "0")))
       .orderBy(asc(instruments.symbol)),
     db
       .select({
@@ -100,6 +102,46 @@ export async function getStudentPortfolioDTO() {
   });
   const equity = new Decimal(session.cashBalance).plus(holdingsValue);
   const start = new Decimal(session.startingCash);
+  const now = new Date();
+  const [latestSnapshot] = await db
+    .select({ id: portfolioEquitySnapshots.id, capturedAt: portfolioEquitySnapshots.capturedAt })
+    .from(portfolioEquitySnapshots)
+    .where(eq(portfolioEquitySnapshots.portfolioId, session.portfolioId))
+    .orderBy(desc(portfolioEquitySnapshots.capturedAt))
+    .limit(1);
+  const snapshotValues = {
+    equity: equity.toFixed(4),
+    cash: new Decimal(session.cashBalance).toFixed(4),
+    holdingsValue: holdingsValue.toFixed(4),
+  };
+  if (!latestSnapshot || now.getTime() - latestSnapshot.capturedAt.getTime() >= 5 * 60_000) {
+    await db.insert(portfolioEquitySnapshots).values({
+      portfolioId: session.portfolioId,
+      ...snapshotValues,
+      capturedAt: now,
+    });
+  } else {
+    await db
+      .update(portfolioEquitySnapshots)
+      .set(snapshotValues)
+      .where(eq(portfolioEquitySnapshots.id, latestSnapshot.id));
+  }
+  const snapshots = await db
+    .select({
+      capturedAt: portfolioEquitySnapshots.capturedAt,
+      equity: portfolioEquitySnapshots.equity,
+    })
+    .from(portfolioEquitySnapshots)
+    .where(eq(portfolioEquitySnapshots.portfolioId, session.portfolioId))
+    .orderBy(desc(portfolioEquitySnapshots.capturedAt))
+    .limit(240);
+  const history = buildPortfolioHistory({
+    createdAt: session.portfolioCreatedAt,
+    startingCash: start.toNumber(),
+    snapshots,
+    currentAt: now,
+    currentValue: equity.toDecimalPlaces(2).toNumber(),
+  });
 
   return {
     session,
@@ -117,6 +159,7 @@ export async function getStudentPortfolioDTO() {
     orders: orderRows,
     journals: journalRows,
     watchlist: watchlistRows.map((row) => row.symbol),
+    history,
   };
 }
 
@@ -167,7 +210,7 @@ export async function getLeaderboardDTO(gameId: string) {
       .from(positions)
       .innerJoin(instruments, eq(positions.instrumentId, instruments.id))
       .innerJoin(portfolios, eq(positions.portfolioId, portfolios.id))
-      .where(eq(portfolios.gameId, gameId)),
+      .where(and(eq(portfolios.gameId, gameId), gt(positions.quantity, "0"))),
   ]);
 
   const relevantPortfolioIds = new Set(portfolioRows.map((row) => row.portfolioId));
