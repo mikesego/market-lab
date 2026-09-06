@@ -4,6 +4,12 @@ Market Lab is a classroom stock-market simulation for grades 3–8. Students res
 
 The official competition is intentionally simple: the portfolio with the greatest ending equity wins. Because every student in a season starts with the same amount, ranking by ending equity and total return produces the same order. Lessons, journal work, and teacher recognitions are reported separately and never modify financial rank.
 
+## Start here
+
+- **Teachers:** [Classroom setup and recovery](docs/CLASSROOM_OFFLINE.md), also at https://stocks.mikesego.com/classroom-guide.
+- **Sonia / a new maintainer:** [Computer setup, editing, publishing, and rollback](docs/START_HERE.md).
+- **Codex / Claude Code:** Read [AGENTS.md](AGENTS.md) and [the current-state handoff](docs/AGENT_HANDOFF.md). [Change log](docs/CHANGELOG.md).
+
 ## Current deployment mode
 
 The active provider is `alpaca-basic-iex-v1`. It retrieves Alpaca’s active U.S. equity reference universe, real-time IEX snapshots, and adjusted daily bars for the classroom simulation. Discovery begins with a small educationally curated featured list, while authenticated search, research pages, and simulated trading resolve supported stocks and ETFs on demand. Every balance and order remains simulated; the application never sends an order to Alpaca or any brokerage. In Classroom mode, trades complete immediately at the latest downloaded price, even offline. The online market/limit workspace retains regular-session matching.
@@ -41,7 +47,7 @@ The full approved product and engineering specification is in [PRODUCT_SPEC.md](
 
 ## Local setup
 
-Requirements: Node.js 20+, npm, and a Postgres database.
+Requirements: Node.js 24 LTS (matching Vercel), npm, and a Postgres database. For the existing deployed service, follow [START_HERE](docs/START_HERE.md) to pull authorized settings and verify database isolation. The migration/seed steps below are for a new disposable database, not the shared production connection.
 
 1. Copy `.env.example` to `.env.local` and fill the required values.
 2. Install packages with `npm ci`.

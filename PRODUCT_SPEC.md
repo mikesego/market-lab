@@ -16,6 +16,10 @@
 
 ---
 
+## Current implementation note — September 6, 2026
+
+Read `docs/AGENT_HANDOFF.md` and `docs/CLASSROOM_OFFLINE.md` first. This specification contains broader historical and roadmap requirements; it is not a claim that every feature below is implemented. Current Classroom mode is approved for real classroom operation and executes immediate saved-price trades online/offline, including closed markets. Reconnection backs up original fills without repricing and downloads prices for future trades. The separate online market/limit workspace retains regular-session rules. Classroom decisions supersede conflicting older online-only or demo-only wording.
+
 ## 0. How to use this specification
 
 This is the normative product and engineering contract for version 1.0. An implementation is not complete merely because screens exist. It is complete only when the required behaviors, rule semantics, safety controls, tests, production deployment, and acceptance criteria in this document are satisfied.
@@ -2895,7 +2899,7 @@ The specification records the owner-approved choices that let implementation pro
 4. **Starting value:** $100,000 default, teacher-configurable.
 5. **Competition:** Alias-only financial leaderboard ranked strictly by current/final portfolio equity and total return; learning assessment and educational awards remain separate.
 6. **Asset scope:** Long-only U.S. common stocks and unleveraged ETFs; no crypto/options/margin/shorting/OTC/complex ETPs.
-7. **Orders:** Market + limit, day + GTC, regular session only; stop orders later.
+7. **Orders:** Classroom uses immediate last-known-price buys/sells online/offline at any exchange hour. The separate online market/limit workflow retains regular-session matching; additional order types are roadmap material.
 8. **Fractional shares:** On; dollar-based orders primary for Explorer.
 9. **Settlement:** Simplified immediate default with optional T+1 settled-cash lesson mode.
 10. **Identity:** Teacher adult auth; students use pseudonymous unique seat credentials, no student email.
@@ -2906,9 +2910,9 @@ The specification records the owner-approved choices that let implementation pro
 15. **Privacy model:** School-directed/minimal-data pilot first; no advertising, data sale, behavioral tracking, or student-content training.
 16. **Classroom quality:** Validate offline reopening, accounting, reconnect/retry, device assignment, and teacher reporting before each release.
 
-### 40.2 Known external blockers for implementation/launch
+### 40.2 External service dependencies
 
-These do not block implementation or a clearly labeled production-domain Demo Mode, but real-user activation requires owner action or explicit approval:
+Classroom operation is approved and deployed. Maintain the following external configuration; these are operating dependencies, not a new classroom activation gate:
 
 - Alpaca Basic account/API credentials kept server-side.
 - Email/OAuth provider credentials and approved redirect origins.

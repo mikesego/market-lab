@@ -9,7 +9,7 @@ Market Lab is one Next.js application with server-rendered interfaces and server
 3. Trading/accounting state transitions.
 4. External market-data normalization.
 
-The browser never calculates an authoritative balance or fill. It submits an order intent; the server re-reads the portfolio, position, rulebook, and eligible quote inside a transaction before committing anything.
+The online market/limit browser submits order intent for server execution. The standalone Classroom browser instead executes immediately at a server-recorded saved price and durably commits its local account and receipt. The server later replays the receipt and independently verifies its original price/rules and arithmetic before acknowledging backup. See `AGENT_HANDOFF.md` and `CLASSROOM_OFFLINE.md` for the full offline contract.
 
 ## Request paths
 
@@ -58,13 +58,13 @@ Money and share math uses arbitrary-precision decimals. Database constraints and
 
 ## Market-data boundary
 
-The current asynchronous adapter returns normalized reference assets, quote, and series shapes from Alpaca Basic’s U.S. equity and IEX endpoints. Credentials are read only on the server. Discovery shows a curated starting set and searches Alpaca’s active tradable universe on demand. Portfolio valuation uses the latest trade; simulated buys use the ask and sells use the bid when available. The order engine refuses stale open-session quotes and has no generated-price fallback.
+The current asynchronous adapter returns normalized reference assets, quote, and series shapes from Alpaca Basic’s U.S. equity and IEX endpoints. Credentials are read only on the server. Discovery shows a curated starting set and searches Alpaca’s active tradable universe on demand. Portfolio valuation uses the latest available trade. Online market/limit buys use the ask and sells use the bid when available, with freshness checks. Classroom buys and sells both use the exact saved last-trade price, including old prices while offline. Neither workflow generates fallback prices.
 
-A future business provider implements the same async interface, so portfolio, classroom, and learning code do not need to change. Corporate-action ingestion, contractual cache/attribution rules, and conformance testing remain launch requirements.
+A future business provider implements the same async interface, so portfolio, classroom, and learning code do not need to change. Comprehensive automatic corporate-action ingestion remains unfinished; applying already-recorded split/dividend events is implemented. Preserve source attribution and conformance tests when changing providers.
 
 ## Environments
 
-- Local: local Next server with Neon development branch, Clerk development instance, and Mike’s Alpaca Basic credentials.
-- Preview: isolated Vercel deployments for validation.
+- Local: local Next server, Clerk development configuration, and authorized project market-data settings. Current Vercel database variables are shared across Development/Preview/Production; verify the actual connection before writes or override both database URLs with an isolated database.
+- Preview: separate Vercel code deployments, not automatically isolated databases.
 - Production: classroom use at the production hostname with accurately labeled IEX data and simulated money.
 - Classroom devices: cached static shell, scoped device access, IndexedDB, immutable price packs, sequential replay, and teacher check-ins. See `CLASSROOM_OFFLINE.md`.
