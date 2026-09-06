@@ -8,7 +8,7 @@ The official competition is intentionally simple: the portfolio with the greates
 
 The active provider is `alpaca-basic-iex-v1`. It retrieves Alpaca’s active U.S. equity reference universe, real-time IEX snapshots, and adjusted daily bars for the classroom simulation. Discovery begins with a small educationally curated featured list, while authenticated search, research pages, and simulated trading resolve supported stocks and ETFs on demand. Every balance and order remains simulated; the application never sends an order to Alpaca or any brokerage. In Classroom mode, trades complete immediately at the latest downloaded price, even offline. The online market/limit workspace retains regular-session matching.
 
-For 12 Fire tablets with intermittent internet, use [the classroom setup guide](docs/CLASSROOM_OFFLINE.md) and the `/classroom` workspace. Each assigned tablet executes trades locally and backs them up automatically on reconnect.
+For 15 Fire tablets with intermittent internet, use [the classroom setup guide](docs/CLASSROOM_OFFLINE.md) and the `/classroom` workspace. Each assigned tablet executes trades locally and backs them up automatically on reconnect.
 
 ## Offline classroom
 

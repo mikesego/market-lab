@@ -1,16 +1,18 @@
-# Market Lab on 12 Fire tablets
+# Market Lab on 15 Fire tablets
 
 Use **https://stocks.mikesego.com/classroom** on the tablets. The existing `/app` workspace remains available for online assignments, learning completion, leaderboard, research charts, and market/limit orders. Classroom is the dedicated offline workspace: portfolio, downloaded investments, immediate buy/sell, trade history and reflections, and downloaded lesson reading.
+
+The 15-tablet count below is a setup example, not a configured capacity. Market Lab has no fixed classroom tablet-count limit. Add a student login and prepare a tablet for each additional student. Enrollment, the device dashboard, and refresh-all use the actual assigned devices. Each student portfolio uses one assigned tablet at a time.
 
 ## One-time classroom setup
 
 1. On your computer, open `/teacher/games`, sign in, and create an active season. Set the start/end dates, concentration limit, fractional-share rule, and rationale requirement.
-2. Add 12 aliases/usernames with individual PINs in **Roster**. Keep a private list matching each login to **Fire 01** through **Fire 12**. Do not use the shared seeded demo account for your class.
+2. Add 15 aliases/usernames with individual PINs in **Roster**. Keep a private list matching each login to **Fire 01** through **Fire 15**. Do not use the shared seeded demo account for your class.
 3. On each Fire, update Fire OS and Silk using good Wi-Fi. Use the same regular Silk browser and device profile each time. Do not use private browsing. Amazon Kids/restricted profiles may have different browser/storage access; test in the actual profile the child will use.
 4. Sign in at `/join` with that tablet's student credentials. Open `/classroom`, enter its label, and select **Prepare this device**. This downloads the app, student's current portfolio, featured investments, available lesson text, season rules, and exact prices. If the portfolio has waiting orders, cancel those on the online Orders page first.
 5. Wait for **Ready for offline use** and **All trades backed up**. The readiness check verifies the entire app cache and successful browser storage. Persistent storage is requested where supported; its status appears in Device & help.
 6. Bookmark `/classroom` in Silk. Installation is optional. If Silk offers Add to Home Screen/Install, use it; availability depends on the tablet/browser version.
-7. Turn Wi-Fi off, reload the bookmark, and confirm the portfolio opens. Close the tab and reopen the bookmark while offline too. In a practice season, make a small buy and sell, reload again, then reconnect and verify they are backed up once. Repeat on all 12 tablets: Chromium automation cannot certify every physical Fire/Silk combination.
+7. Turn Wi-Fi off, reload the bookmark, and confirm the portfolio opens. Close the tab and reopen the bookmark while offline too. In a practice season, make a small buy and sell, reload again, then reconnect and verify they are backed up once. Repeat on all tablets: Chromium automation cannot certify every physical Fire/Silk combination.
 8. Download additional symbols in **Discover & trade** while connected. Featured investments and existing holdings are included automatically; the limit is 100 downloaded investments per tablet.
 
 ## During class

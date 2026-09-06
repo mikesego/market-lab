@@ -207,19 +207,31 @@ test("corporate actions reconcile once after offline trades and protect prices u
   }
 });
 
-test("12 assigned tablets upload concurrently without mixing portfolios or duplicating retries", async ({ request, fixture }) => {
+test("16 assigned tablets enroll beyond 15 and upload concurrently without mixing portfolios or duplicating retries", async ({ request, fixture }) => {
   test.setTimeout(120_000);
   const extras: string[] = [];
   const devices = [{ portfolioId: fixture.portfolioId, state: fixture.state }];
   try {
-    for (let index = 2; index <= 12; index++) {
+    for (let index = 2; index <= 16; index++) {
       const portfolioId = randomUUID(), studentId = randomUUID(), deviceId = randomUUID();
       const state = structuredClone(fixture.state);
       state.deviceId = deviceId; state.studentId = studentId; state.token = randomBytes(32).toString("hex"); state.pack.deviceId = deviceId; state.pack.id = randomUUID();
       await pool.query("insert into students(id,game_id,username,display_name,pin_hash) values($1,$2,$3,$3,'test-not-a-login')", [studentId, fixture.gameId, `Test${index}`]);
       await pool.query("insert into portfolios(id,game_id,student_id,cash_balance) values($1,$2,$3,100000)", [portfolioId, fixture.gameId, studentId]);
       extras.push(portfolioId);
-      await pool.query("insert into classroom_devices(id,portfolio_id,token_hash,label,portfolio_version) values($1,$2,$3,$4,1)", [deviceId, portfolioId, hash(state.token), `Fire ${index}`]);
+      if (index === 16) {
+        // Exercise real enrollment with 15 tablets already assigned to this class.
+        const sessionToken = randomBytes(32).toString("hex");
+        await pool.query("insert into student_sessions(student_id,token_hash,expires_at) values($1,$2,now() + interval '1 hour')", [studentId, hash(sessionToken)]);
+        const enrollment = await request.post("/api/classroom/setup", {
+          headers: { Cookie: `market_lab_student=${sessionToken}` },
+          data: { deviceId, token: state.token, label: `Fire ${index}` },
+        });
+        expect(enrollment.status(), await enrollment.text()).toBe(200);
+        expect((await enrollment.json()).studentId).toBe(studentId);
+      } else {
+        await pool.query("insert into classroom_devices(id,portfolio_id,token_hash,label,portfolio_version) values($1,$2,$3,$4,1)", [deviceId, portfolioId, hash(state.token), `Fire ${index}`]);
+      }
       await pool.query("insert into classroom_price_packs(id,device_id,payload) values($1,$2,$3)", [state.pack.id, deviceId, JSON.stringify(state.pack)]);
       devices.push({ portfolioId, state });
     }

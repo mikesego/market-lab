@@ -1,6 +1,6 @@
 # Classroom privacy and operations
 
-Market Lab supports teacher-managed classroom use, including 12 assigned Fire tablets with intermittent internet. This document records operating practices; it is not an activation or approval gate. See [the classroom guide](CLASSROOM_OFFLINE.md) for setup.
+Market Lab supports teacher-managed classroom use, including 15 assigned Fire tablets with intermittent internet. This document records operating practices; it is not an activation or approval gate. See [the classroom guide](CLASSROOM_OFFLINE.md) for setup.
 
 - Use student aliases and unique PINs. Students need no email, legal name, phone number, location, or brokerage account.
 - Keep teacher authentication, provider credentials, database credentials, and operator settings on the server.
