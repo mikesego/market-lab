@@ -1,9 +1,9 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { auditEvents, cashLedger, classroomDevices, classroomPricePacks, fills, games, instruments, journalEntries, lessons, orders, portfolios, positions, students } from "@/db/schema";
+import { auditEvents, cashLedger, classroomDevices, classroomPricePacks, corporateActionApplications, corporateActions, fills, games, instruments, journalEntries, lessons, orders, portfolios, positions, students } from "@/db/schema";
 import { getStudentSession } from "@/lib/auth/student-session";
 import { hashSessionToken } from "@/lib/security/student-credentials";
 import { marketDataProvider } from "@/lib/market/provider";
@@ -83,6 +83,11 @@ export async function createPricePack(device: typeof classroomDevices.$inferSele
     const selected = old && Date.parse(old.asOf) > Date.parse(quote.asOf) ? old : { price: quote.price.toFixed(6), asOf: quote.asOf, providerEventId: quote.providerEventId };
     assets[symbol] = { instrumentId: instrument.id, symbol, name: profile.name, description: profile.description, sector: profile.sector, assetType: profile.assetType, fractionable: asset.fractionable, ...selected };
   }));
+  const splits = await db.select().from(corporateActions).where(and(eq(corporateActions.actionType, "split"), gte(corporateActions.effectiveAt, device.createdAt), lte(corporateActions.effectiveAt, new Date()), inArray(corporateActions.instrumentId, Object.values(assets).map((asset) => asset.instrumentId))));
+  for (const split of splits) {
+    const asset = Object.values(assets).find((asset) => asset.instrumentId === split.instrumentId)!;
+    if (Date.parse(asset.asOf) < split.effectiveAt.getTime()) throw new ClassroomError(`Waiting for a post-split price for ${asset.symbol}. Reconnect after the market updates.`, 503);
+  }
   const game = context.game;
   const pack: PricePack = { id: randomUUID(), deviceId: device.id, fetchedAt: new Date().toISOString(), assets,
     rules: { status: context.student.status === "active" ? game.status : "paused", startsAt: game.startsAt.toISOString(), endsAt: game.endsAt.toISOString(), allowFractional: game.allowFractional, maxPositionPercent: game.maxPositionPercent, minCashPercent: game.minCashPercent, rationaleRequired: game.config.rationaleRequired !== false } };
@@ -134,6 +139,7 @@ export async function syncDevice(device: typeof classroomDevices.$inferSelect, i
     if (portfolio.version !== current.portfolioVersion) throw new ClassroomError("Your portfolio changed outside this tablet. Keep your saved work and ask your teacher to reconcile it.");
     const held = await tx.select({ symbol: instruments.symbol, quantity: positions.quantity, averageCost: positions.averageCost, realizedGain: positions.realizedGain }).from(positions).innerJoin(instruments, eq(positions.instrumentId, instruments.id)).where(eq(positions.portfolioId, portfolio.id));
     let account: ClassroomAccount = { cash: portfolio.cashBalance, realizedGain: portfolio.realizedGain, positions: Object.fromEntries(held.map(({ symbol, ...p }) => [symbol, p])) };
+    const appliedSplits = input.trades.length ? await tx.select({ instrumentId: corporateActions.instrumentId, effectiveAt: corporateActions.effectiveAt }).from(corporateActionApplications).innerJoin(corporateActions, eq(corporateActions.id, corporateActionApplications.actionId)).where(and(eq(corporateActionApplications.portfolioId, portfolio.id), eq(corporateActions.actionType, "split"))) : [];
     let sequence = current.lastSequence;
     let version = portfolio.version;
     for (const trade of input.trades) {
@@ -148,6 +154,8 @@ export async function syncDevice(device: typeof classroomDevices.$inferSelect, i
       if (trade.sequence !== sequence + 1) throw new ClassroomError("A saved trade is missing. Restore the tablet’s complete backup before syncing.");
       const [packRecord] = await tx.select().from(classroomPricePacks).where(and(eq(classroomPricePacks.id, trade.packId), eq(classroomPricePacks.deviceId, current.id)));
       if (!packRecord) throw new ClassroomError("The original saved prices for this trade are missing.");
+      const submittedAsset = packRecord.payload.assets[trade.symbol];
+      if (submittedAsset && appliedSplits.some((split) => split.instrumentId === submittedAsset.instrumentId && Date.parse(submittedAsset.asOf) < split.effectiveAt.getTime())) throw new ClassroomError("These saved prices predate a stock split already applied to your holdings. Keep your backup and refresh prices before making another trade.");
       if (Date.parse(trade.executedAt) > Date.now() + 300_000) throw new ClassroomError("This tablet’s clock is ahead. Correct its date and time, then sync again.");
       let result;
       try { result = applyClassroomTrade(account, packRecord.payload, trade); }

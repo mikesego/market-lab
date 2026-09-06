@@ -240,3 +240,40 @@ test("12 assigned tablets upload concurrently without mixing portfolios or dupli
     }
   }
 });
+
+test("a downloaded stock with zero holdings crosses a split before later post-split purchases", async ({ request, fixture }) => {
+  test.setTimeout(90_000);
+  const instrumentId = randomUUID(), actionId = randomUUID();
+  const symbol = `T${instrumentId.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+  const pack = structuredClone(fixture.state.pack);
+  pack.id = randomUUID(); pack.assets = { [symbol]: { ...pack.assets.AAPL, symbol, instrumentId } };
+  const headers = { Authorization: `Bearer ${fixture.state.token}` };
+  await pool.query("insert into instruments(id,symbol,name,exchange,base_price) values($1,$2,'Empty split fixture','TEST',100)", [instrumentId, symbol]);
+  try {
+    await pool.query("insert into classroom_price_packs(id,device_id,payload) values($1,$2,$3)", [pack.id, pack.deviceId, JSON.stringify(pack)]);
+    await pool.query("update classroom_devices set created_at=now()-interval '1 day' where id=$1", [pack.deviceId]);
+    await pool.query("insert into corporate_actions(id,instrument_id,action_type,provider_event_id,effective_at,split_numerator,split_denominator) values($1,$2,'split',$3,now()-interval '1 second',2,1)", [actionId, instrumentId, `fixture-${actionId}`]);
+    const empty = await request.post("/api/classroom/sync", { headers, data: { deviceId: pack.deviceId, trades: [] } });
+    expect((await empty.json()).adjustmentsPending).toBe(true);
+    await request.post("/api/classroom/reconcile", { headers, data: { deviceId: pack.deviceId, lastSequence: 0 } });
+    expect((await pool.query("select count(*)::int n from corporate_action_applications where portfolio_id=$1", [fixture.portfolioId])).rows[0].n).toBe(1);
+    const next = structuredClone(pack);
+    next.id = randomUUID(); next.fetchedAt = new Date().toISOString(); next.assets[symbol].asOf = next.fetchedAt; next.assets[symbol].price = "50.000000";
+    await pool.query("insert into classroom_price_packs(id,device_id,payload) values($1,$2,$3)", [next.id, next.deviceId, JSON.stringify(next)]);
+    const trade = { id: randomUUID(), sequence: 1, packId: next.id, symbol, side: "buy", quantity: "1", rationale: "Buying after the stock has already split.", confidence: 3, executedAt: new Date().toISOString() };
+    const obsolete = await request.post("/api/classroom/sync", { headers, data: { deviceId: pack.deviceId, trades: [{ ...trade, packId: pack.id }] } });
+    expect(obsolete.status()).toBe(409);
+    const bought = await request.post("/api/classroom/sync", { headers, data: { deviceId: pack.deviceId, trades: [trade] } });
+    expect(bought.status(), await bought.text()).toBe(200);
+    expect((await bought.json()).adjustmentsPending).toBe(false);
+    expect(Number((await pool.query("select quantity from positions where portfolio_id=$1 and instrument_id=$2", [fixture.portfolioId, instrumentId])).rows[0].quantity)).toBe(1);
+    expect(Number((await pool.query("select cash_balance from portfolios where id=$1", [fixture.portfolioId])).rows[0].cash_balance)).toBe(99950);
+  } finally {
+    await pool.query("delete from corporate_actions where id=$1", [actionId]);
+    await pool.query("delete from cash_ledger where portfolio_id=$1", [fixture.portfolioId]);
+    await pool.query("delete from fills where portfolio_id=$1", [fixture.portfolioId]);
+    await pool.query("delete from orders where portfolio_id=$1", [fixture.portfolioId]);
+    await pool.query("delete from positions where portfolio_id=$1 and instrument_id=$2", [fixture.portfolioId, instrumentId]);
+    await pool.query("delete from instruments where id=$1", [instrumentId]);
+  }
+});

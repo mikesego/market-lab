@@ -1,8 +1,8 @@
 import "server-only";
 import Decimal from "decimal.js";
-import { and, eq, gt, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, lte } from "drizzle-orm";
 import { db, type Database } from "@/db";
-import { auditEvents, cashLedger, classroomDevices, corporateActionApplications, corporateActions, orders, portfolios, positions } from "@/db/schema";
+import { auditEvents, cashLedger, classroomDevices, classroomPricePacks, corporateActionApplications, corporateActions, orders, portfolios, positions } from "@/db/schema";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -12,7 +12,12 @@ export async function applyPortfolioCorporateAction(tx: Transaction, action: typ
   const [applied] = await tx.select().from(corporateActionApplications).where(and(eq(corporateActionApplications.actionId, action.id), eq(corporateActionApplications.portfolioId, portfolio.id)));
   if (applied) return portfolio;
   const [position] = await tx.select().from(positions).where(and(eq(positions.portfolioId, portfolio.id), eq(positions.instrumentId, action.instrumentId)));
-  if (!position || new Decimal(position.quantity).lte(0)) return portfolio;
+  if (!position || new Decimal(position.quantity).lte(0)) {
+    // A device must cross the corporate-event boundary even with no holdings,
+    // otherwise a later purchase at a post-split price could be split again.
+    await tx.insert(corporateActionApplications).values({ actionId: action.id, portfolioId: portfolio.id });
+    return portfolio;
+  }
   let nextCash = new Decimal(portfolio.cashBalance);
   if (action.actionType === "split") {
     if (!action.splitNumerator || !action.splitDenominator) throw new Error("Split ratio is required.");
@@ -35,11 +40,18 @@ export async function applyPortfolioCorporateAction(tx: Transaction, action: typ
 }
 
 export async function pendingDeviceActions(tx: Transaction, device: typeof classroomDevices.$inferSelect) {
-  // Include processed global events: an offline buy may only just have arrived.
-  const actions = await tx.select({ action: corporateActions }).from(corporateActions).innerJoin(positions, and(eq(positions.instrumentId, corporateActions.instrumentId), eq(positions.portfolioId, device.portfolioId), gt(positions.quantity, "0"))).where(and(gte(corporateActions.effectiveAt, device.createdAt), lte(corporateActions.effectiveAt, new Date()))).orderBy(corporateActions.effectiveAt);
+  // Reconcile every affected DOWNLOADED symbol, even if the server currently
+  // holds zero shares. A local trade may still be uploading while prices refresh.
+  // Blocking the new pack until the device takes its local write barrier keeps
+  // all pre-split trades before the adjustment and every later trade after it.
+  const [saved] = await tx.select({ payload: classroomPricePacks.payload }).from(classroomPricePacks).where(eq(classroomPricePacks.deviceId, device.id)).orderBy(desc(classroomPricePacks.createdAt)).limit(1);
+  if (!saved) return [];
+  const assets = Object.values(saved.payload.assets);
+  if (!assets.length) return [];
+  const actions = await tx.select().from(corporateActions).where(and(inArray(corporateActions.instrumentId, assets.map((asset) => asset.instrumentId)), gte(corporateActions.effectiveAt, device.createdAt), lte(corporateActions.effectiveAt, new Date()))).orderBy(corporateActions.effectiveAt);
   const applied = await tx.select({ id: corporateActionApplications.actionId }).from(corporateActionApplications).where(eq(corporateActionApplications.portfolioId, device.portfolioId));
   const ids = new Set(applied.map((row) => row.id));
-  return actions.map((row) => row.action).filter((action) => !ids.has(action.id));
+  return actions.filter((action) => !ids.has(action.id) && assets.some((asset) => asset.instrumentId === action.instrumentId && Date.parse(asset.asOf) < action.effectiveAt.getTime()));
 }
 
 export async function processCorporateAction(actionId: string) {
