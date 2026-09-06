@@ -6,9 +6,17 @@ The official competition is intentionally simple: the portfolio with the greates
 
 ## Current deployment mode
 
-The active provider is `alpaca-basic-iex-v1`. It retrieves Alpaca’s active U.S. equity reference universe, real-time IEX snapshots, and adjusted daily bars for Mike’s personal demonstration. Discovery begins with a small educationally curated featured list, while authenticated search, research pages, and simulated trading resolve supported stocks and ETFs on demand. Every balance and order remains simulated; the application never sends an order to Alpaca or any brokerage. There is no synthetic-price fallback: if Alpaca is unavailable or an open-session quote is stale, new fills stop safely.
+The active provider is `alpaca-basic-iex-v1`. It retrieves Alpaca’s active U.S. equity reference universe, real-time IEX snapshots, and adjusted daily bars for the classroom simulation. Discovery begins with a small educationally curated featured list, while authenticated search, research pages, and simulated trading resolve supported stocks and ETFs on demand. Every balance and order remains simulated; the application never sends an order to Alpaca or any brokerage. In Classroom mode, trades complete immediately at the latest downloaded price, even offline. The online market/limit workspace retains regular-session matching.
 
-This free personal-data arrangement must not be treated as permission for public, classroom, or multi-user display. Before sharing the application, replace or upgrade the provider agreement for the intended audience and complete the launch gates in [docs/PRIVACY_LAUNCH_CHECKLIST.md](docs/PRIVACY_LAUNCH_CHECKLIST.md).
+For 12 Fire tablets with intermittent internet, use [the classroom setup guide](docs/CLASSROOM_OFFLINE.md) and the `/classroom` workspace. Each assigned tablet executes trades locally and backs them up automatically on reconnect.
+
+## Offline classroom
+
+- Immediate buy/sell at the last downloaded price, including closed markets.
+- Durable IndexedDB portfolio and receipts, fully cached app, offline reload and reopening.
+- Automatic reconnect, foreground, and supported background sync; retries do not duplicate trades or reprice them.
+- One device per portfolio, authenticated price packs, decimal accounting, and teacher device check-ins.
+- Read downloaded lessons and research offline; trade reflections sync to the journal. Assignments and leaderboard remain online.
 
 ## Product areas
 
@@ -91,7 +99,7 @@ Market orders submitted during an open session fill immediately when the quote i
 
 ## Data model and safety
 
-The ledger, fills, and audit trail are server-owned. Clients submit intent; they never set balances, fill prices, rank, or ownership identifiers. Every teacher-owned route verifies the authenticated adult and the specific season owner. Student sessions use random opaque tokens in `HttpOnly`, `Secure` production cookies. Failed student logins are rate-limited using HMAC-derived device/network identifiers rather than raw IP storage.
+The ledger, fills, and audit trail are server-owned. Online clients submit intent. Classroom clients submit sequential completed-trade receipts referencing server-recorded prices; the server recomputes balances and fills and does not trust submitted balances or arbitrary prices. Every teacher-owned route verifies the authenticated adult and the specific season owner. Student sessions use random opaque tokens in `HttpOnly`, `Secure` production cookies. Failed student logins are rate-limited using HMAC-derived device/network identifiers rather than raw IP storage.
 
 Market Lab is educational software, not a broker, adviser, or recommendation engine. It never connects student actions to real brokerage orders.
 

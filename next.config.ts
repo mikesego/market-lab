@@ -6,8 +6,19 @@ const nextConfig: NextConfig = {
     taint: true,
   },
   serverExternalPackages: ["pg"],
+  async rewrites() {
+    return [{ source: "/classroom", destination: "/classroom/index.html" }];
+  },
   async headers() {
     return [
+      { source: "/classroom/sw.js", headers: [{ key: "Service-Worker-Allowed", value: "/classroom" }] },
+      {
+        source: "/classroom/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-cache" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" },
+        ],
+      },
       {
         source: "/(.*)",
         headers: [

@@ -8,7 +8,7 @@ export type MarketDataProvider = {
   label: string;
   feed: "iex";
   isLive: boolean;
-  usageMode: "personal-demo";
+  usageMode: "classroom";
   getQuote(symbol: string): Promise<Quote>;
   getQuotes(symbols?: string[]): Promise<Quote[]>;
   getSeries(symbol: string, days?: number): Promise<PricePoint[]>;
@@ -19,7 +19,7 @@ export const marketDataProvider: MarketDataProvider = {
   label: "Alpaca Basic · IEX",
   feed: "iex",
   isLive: true,
-  usageMode: "personal-demo",
+  usageMode: "classroom",
   getQuote: getAlpacaQuote,
   getQuotes: getAlpacaQuotes,
   getSeries: getAlpacaSeries,

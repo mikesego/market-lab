@@ -39,9 +39,13 @@ Implementation priority when requirements conflict:
 5. Engagement and visual polish.
 6. Convenience and implementation speed.
 
-Implementation is authorized under the approved decisions in Section 40. That authorization does not include purchasing a market-data plan, adding another third-party service with material cost, opening the demo to real students before the launch gates pass, or collecting additional student data without explicit approval.
+Implementation is authorized under the approved decisions in Section 40. That authorization does not include purchasing a market-data plan, adding another third-party service with material cost, collecting additional student data without explicit approval.
 
 ---
+
+## Classroom offline execution update (September 2026)
+
+The current classroom use case supersedes online-only order timing for assigned tablets. At `/classroom`, buys and sells complete immediately at the latest downloaded last-trade price, even offline, after hours, or on weekends. Reconnecting backs up original-price receipts and refreshes prices for future trades. One browser is assigned per student portfolio; teacher check-ins expose backup status. Full details: `docs/CLASSROOM_OFFLINE.md`.
 
 ## 1. Executive summary
 
@@ -67,7 +71,7 @@ Learning mastery, research, decision quality, reflection, diversification, and o
 
 ### 1.2 The central technical decision
 
-The deployed application will not use Mike’s Robinhood MCP connection as its market-data backend. That connection is an authenticated Codex capability associated with a brokerage environment, not a licensed multi-user application feed. It also exposes order-related capabilities that must never be reachable from a child-facing system. Market Lab uses a server-only asynchronous `MarketDataProvider` adapter backed now by Alpaca Basic’s real-time IEX feed for Mike’s sole-user personal demo and, before the URL is shared, by a provider agreement that permits the intended external display and simulated-trading uses. Robinhood MCP may be used manually during development to spot-check public quotes, never by the production runtime and never to place a trade for this product.
+Market Lab uses a server-only asynchronous `MarketDataProvider` backed by Alpaca Basic’s IEX feed. Classroom mode executes immediately at the last downloaded price, online or offline. The application never uses Robinhood MCP or sends brokerage orders.
 
 ### 1.3 Launch definition
 
@@ -77,12 +81,11 @@ Version 1.0 is launched only when:
 - A student can join, learn, research, trade, reflect, and finish a season on a school Chromebook or tablet.
 - Quotes, orders, holdings, cash, corporate actions, rankings, and exports reconcile exactly.
 - No student email address, date of birth, phone number, home address, or brokerage information is requested.
-- The production market-data contract permits the exact display and simulation use.
 - Accessibility, privacy, security, load, failure-recovery, and browser acceptance suites pass.
 - The site is deployed to Vercel, `stocks.mikesego.com` points to it through Cloudflare DNS, and production smoke tests pass.
 - The source is committed and pushed to the public `mikesego/market-lab` GitHub repository with deployment and operating documentation; secrets are never committed.
 
-A production-domain **personal demo** may be deployed before the multi-user licensed-feed gate if it is conspicuously labeled, uses Mike’s Alpaca Basic credentials server-side, and Mike is the sole user. Prices are accurately labeled as real-time IEX data and all trades as simulated. The site must not be shared until the provider agreement covers the intended audience. Real-user launch still requires the complete definition above.
+Classroom use is supported. See `docs/CLASSROOM_OFFLINE.md` for tablet setup, immediate saved-price execution, and automatic synchronization.
 
 ---
 
@@ -349,7 +352,7 @@ Decision cards, proposals, approvals, orders, and reflections retain member attr
 
 ### 6.5 Spectator/demo mode
 
-A teacher can open a seeded, read-only demo game without student accounts. Mike's unshared, owner-only personal demo may use the server-side Alpaca Basic IEX feed and synthetic student records. Before a demo URL is shared or promoted publicly, its market-data agreement MUST permit that display and it MUST contain no real student records.
+A teacher can open a seeded, read-only demonstration with synthetic student records. Real classes use their own teacher-managed seasons and student credentials.
 
 ---
 
@@ -483,7 +486,7 @@ Exit: launch checklist in Section 38 is signed off.
 
 Exit: launch definition in Section 1.3 is met.
 
-Before a licensed business feed is connected, Phase 5 may end in **Personal Demo Mode** at the production hostname: Mike is the sole user, Alpaca Basic IEX data and all simulated trading are conspicuously labeled, credentials remain server-only, and no real student data is present. The URL must not be shared until the market-data agreement permits the intended audience.
+Classroom use is supported. See `docs/CLASSROOM_OFFLINE.md` for tablet setup, immediate saved-price execution, and automatic synchronization.
 
 ### Post-1.0 candidates
 
@@ -1023,7 +1026,7 @@ The platform stores times in UTC, calculates market rules using IANA timezone `A
 
 Every game has exactly one immutable competitive data mode:
 
-- `REALTIME_IEX_PERSONAL`: Alpaca Basic real-time IEX feed for the owner-only personal demo.
+- `REALTIME_IEX`: Alpaca Basic real-time IEX feed, cached for classroom offline use.
 - `REALTIME_CONSOLIDATED`: properly licensed consolidated U.S. feed.
 - `DELAYED_15`: properly licensed approximately 15-minute delayed consolidated feed.
 
@@ -1082,7 +1085,7 @@ The provider is selected by contract rights, not the cheapest individual plan. R
 
 1. Obtain written confirmation from Massive (or another approved vendor) that the selected **business** plan permits server-side use, display to authenticated students/teachers, derived portfolio valuation, and simulated execution at the expected user count.
 2. Prefer consolidated bid/ask/trade, reference data, aggregates, dividends, splits, ticker events, and market status through one contract.
-3. Upgrade Alpaca to an appropriate business/exchange entitlement or implement another vendor only when its agreement permits multi-user display/redistribution; the current Basic personal access is not sufficient evidence.
+3. Keep the provider behind the adapter and preserve source timestamps and exact saved execution prices.
 4. Keep provider-specific logic behind the adapter and store source evidence so a replacement does not rewrite the ledger.
 
 No licensed data is exposed through a general-purpose unauthenticated API. Client payloads contain only the fields needed for the current screen, with cache and attribution rules from the provider contract.
@@ -2301,7 +2304,7 @@ Runbooks cover account compromise, cross-tenant exposure, provider credential le
 
 ## 29. Privacy, child safety, and education-data governance
 
-This section defines product controls, not legal advice. Counsel/privacy review is a launch gate for real school deployment.
+This section defines product controls, not legal advice. Privacy practices should match the classroom context.
 
 ### 29.1 Data principles
 
@@ -2863,7 +2866,7 @@ Given a verified organization deletion request, when the workflow completes, the
 
 | Risk | Impact | Mitigation / launch gate |
 |---|---|---|
-| Market-data license does not permit classroom display | Product cannot legally operate as designed | Written business-use confirmation before production; adapter/synthetic fallback |
+| Classroom internet is unreliable | Quotes and server reports may lag | Cached last-known prices, durable local trades, automatic sync, visible check-ins |
 | Short contest rewards reckless concentration | Can confuse luck with skill | Keep the winner rule simple and financial; teach the distinction through concentration warnings, reflections, reports, and separate awards |
 | Weak student credentials cause impersonation | Privacy/integrity incident | Unique seat credential, single-use QR exchange, rate limits, revocation, aliases |
 | Student names leak through analytics/logs | Child privacy incident | Offline mapping default, app-layer encryption, structured allowlists/redaction tests |
@@ -2898,19 +2901,19 @@ The specification records the owner-approved choices that let implementation pro
 10. **Identity:** Teacher adult auth; students use pseudonymous unique seat credentials, no student email.
 11. **Social:** No student chat, DMs, public profiles, or global leaderboard; teacher one-way announcements and structured help flag.
 12. **AI:** No generative AI required in student 1.0; reviewed/rule-based guidance only.
-13. **Market data:** Run the complete personal demo on Alpaca Basic’s live IEX feed with no runtime synthetic fallback. Robinhood MCP may be used manually/read-only for validation but remains excluded from runtime. Before the URL is shared, upgrade or replace the provider with an agreement covering the intended external users; consolidated real-time is preferred if financially reasonable, while licensed 15-minute delayed mode is acceptable if conspicuous.
+13. **Market data:** Use Alpaca Basic’s live IEX feed with source timestamps. Classroom mode preserves the last downloaded price offline. No runtime synthetic-price fallback or brokerage execution.
 14. **Hosting/source:** Vercel at `stocks.mikesego.com`, Cloudflare-managed DNS, public GitHub repository with all credentials held outside source control.
 15. **Privacy model:** School-directed/minimal-data pilot first; no advertising, data sale, behavioral tracking, or student-content training.
-16. **Launch quality:** All phases and launch gates are required; no “MVP” deployment to real students that bypasses privacy, accounting, or data-license gates.
+16. **Classroom quality:** Validate offline reopening, accounting, reconnect/retry, device assignment, and teacher reporting before each release.
 
 ### 40.2 Known external blockers for implementation/launch
 
 These do not block implementation or a clearly labeled production-domain Demo Mode, but real-user activation requires owner action or explicit approval:
 
-- Alpaca Basic account/API credentials for the current personal demo; an appropriate provider contract and recurring cost before any external users are invited.
+- Alpaca Basic account/API credentials kept server-side.
 - Email/OAuth provider credentials and approved redirect origins.
 - Production Vercel/GitHub/Cloudflare access if not already available to the build environment.
-- Product/privacy legal review before inviting real under-13 students.
+- Classroom-specific privacy practices and student-data handling.
 - Final public product name.
 
 ---
@@ -3128,10 +3131,10 @@ The product must teach these as simulation boundaries when relevant and must nev
 
 ## Appendix H — Remaining activation decisions
 
-Implementation and a clearly labeled Demo Mode are approved. Before real-student activation, the owner will still choose or confirm:
+Classroom operation is approved. Maintain these settings as the classroom evolves:
 
 1. Final public product name.
-2. Licensed business market-data provider and acceptable recurring cost.
+2. Market-data provider configuration and any desired future plan changes.
 3. Consolidated real-time versus conspicuously delayed production feed if the cost difference is material.
 4. Teacher adult-auth/email provider credentials and redirect origins.
-5. Completion of the recommended privacy/legal review for real under-13 users.
+5. Classroom-specific privacy and student-data operating practices.

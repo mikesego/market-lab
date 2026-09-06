@@ -56,7 +56,7 @@ test("student can sign in and submit a simulated order", async ({ page }) => {
   await page.getByLabel("PIN").fill("2468");
   await page.getByRole("button", { name: "Enter Market Lab" }).click();
   await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByRole("heading", { name: /Good afternoon, Avery/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Avery/i })).toBeVisible();
 
   await page.getByRole("link", { name: "Assignments" }).click();
   await expect(page.getByRole("heading", { name: "Assignments" })).toBeVisible();

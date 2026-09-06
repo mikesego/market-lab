@@ -33,6 +33,7 @@ export function StudentNav() {
   const pathname = usePathname();
   return (
     <nav aria-label="Student workspace">
+      <a href="/classroom" className="nav-link focus-ring"><Landmark size={18} aria-hidden="true" />Classroom · offline ready</a>
       {links.map(([href, label, Icon]) => {
         const active = href === "/app" ? pathname === href : pathname.startsWith(href);
         return <Link key={href} href={href} className={cn("nav-link focus-ring", active && "nav-link-active")}><Icon size={18} aria-hidden="true" />{label}</Link>;

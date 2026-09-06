@@ -65,6 +65,6 @@ A future business provider implements the same async interface, so portfolio, cl
 ## Environments
 
 - Local: local Next server with Neon development branch, Clerk development instance, and Mike’s Alpaca Basic credentials.
-- Preview: isolated Vercel deployments with the same personal-only Alpaca access; do not share preview URLs.
-- Production demo: production hostname, conspicuous personal-demo/live-IEX banner, Mike as the sole user.
-- Real-student production: production Clerk instance, licensed displayed data, privacy agreements, monitoring, backups, incident contacts, and launch approval.
+- Preview: isolated Vercel deployments for validation.
+- Production: classroom use at the production hostname with accurately labeled IEX data and simulated money.
+- Classroom devices: cached static shell, scoped device access, IndexedDB, immutable price packs, sequential replay, and teacher check-ins. See `CLASSROOM_OFFLINE.md`.

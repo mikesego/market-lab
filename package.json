@@ -17,7 +17,10 @@
     "db:migrate": "dotenv -e .env.local -- drizzle-kit migrate",
     "db:seed": "dotenv -e .env.local -- tsx src/db/seed.ts",
     "db:reset-demo": "dotenv -e .env.local -- sh -c 'tsx src/db/reset-demo.ts && tsx src/db/seed.ts'",
-    "db:studio": "dotenv -e .env.local -- drizzle-kit studio"
+    "db:studio": "dotenv -e .env.local -- drizzle-kit studio",
+    "build:classroom": "node scripts/build-classroom.mjs",
+    "predev": "npm run build:classroom",
+    "prebuild": "npm run build:classroom"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.6.5",
@@ -50,8 +53,10 @@
     "@vitest/coverage-v8": "^4.1.10",
     "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.8",

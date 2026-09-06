@@ -217,6 +217,32 @@ export const portfolioEquitySnapshots = pgTable(
   (table) => [index("portfolio_equity_snapshots_portfolio_time_idx").on(table.portfolioId, table.capturedAt)],
 );
 
+// One assigned browser owns classroom trading until it explicitly releases the
+// portfolio. This prevents disconnected devices spending the same balance.
+export const classroomDevices = pgTable("classroom_devices", {
+  id: uuid("id").primaryKey(),
+  portfolioId: uuid("portfolio_id").references(() => portfolios.id, { onDelete: "cascade" }).notNull(),
+  tokenHash: text("token_hash").notNull(),
+  label: text("label").notNull(),
+  active: boolean("active").default(true).notNull(),
+  lastSequence: integer("last_sequence").default(0).notNull(),
+  portfolioVersion: integer("portfolio_version").notNull(),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  refreshRequestedAt: timestamp("refresh_requested_at", { withTimezone: true }),
+  pricesRefreshedAt: timestamp("prices_refreshed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("classroom_devices_token_uidx").on(table.tokenHash),
+  index("classroom_devices_portfolio_idx").on(table.portfolioId),
+]);
+
+export const classroomPricePacks = pgTable("classroom_price_packs", {
+  id: uuid("id").primaryKey(),
+  deviceId: uuid("device_id").references(() => classroomDevices.id, { onDelete: "cascade" }).notNull(),
+  payload: jsonb("payload").$type<import("../lib/classroom/model").PricePack>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [index("classroom_price_packs_device_idx").on(table.deviceId)]);
+
 export const positions = pgTable(
   "positions",
   {
@@ -352,6 +378,14 @@ export const watchlistItems = pgTable(
   },
   (table) => [primaryKey({ columns: [table.studentId, table.instrumentId] })],
 );
+
+// Corporate actions may reach an offline classroom portfolio after other
+// portfolios. Each portfolio applies each event exactly once at reconciliation.
+export const corporateActionApplications = pgTable("corporate_action_applications", {
+  actionId: uuid("action_id").references(() => corporateActions.id, { onDelete: "cascade" }).notNull(),
+  portfolioId: uuid("portfolio_id").references(() => portfolios.id, { onDelete: "cascade" }).notNull(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.actionId, table.portfolioId] })]);
 
 export const lessons = pgTable(
   "lessons",

@@ -7,6 +7,7 @@ import { db } from "@/db";
 import {
   auditEvents,
   cashLedger,
+  classroomDevices,
   fills,
   games,
   instruments,
@@ -120,6 +121,10 @@ export async function placeOrder(input: PlaceOrderInput) {
     if (!portfolio || portfolio.studentId !== input.studentId || portfolio.gameId !== input.gameId || portfolio.status !== "active") {
       throw new TradingError("FORBIDDEN", "This portfolio is not available.");
     }
+
+    const [classroomDevice] = await tx.select({ id: classroomDevices.id }).from(classroomDevices)
+      .where(and(eq(classroomDevices.portfolioId, portfolio.id), eq(classroomDevices.active, true))).limit(1);
+    if (classroomDevice) throw new TradingError("CLASSROOM_DEVICE_ASSIGNED", "Use Classroom on your assigned tablet to trade instantly, online or offline. Sync and release it before trading in the online workspace.");
 
     const [position] = await tx
       .select()

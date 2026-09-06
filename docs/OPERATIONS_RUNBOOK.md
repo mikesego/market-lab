@@ -5,7 +5,7 @@
 - `GET /api/health` must return HTTP 200 with database `ok` and the expected provider ID.
 - `/ops` is restricted to Clerk adults listed in `OPERATOR_EMAILS` (or a stored `operator` role).
 - Check waiting-order count, recent audit events, provider status, database availability, Vercel errors, and p95 latency.
-- In licensed mode, additionally check quote age, vendor error rate, corporate-action lag, and symbol coverage.
+- For the market feed, additionally check quote age, vendor error rate, corporate-action lag, and symbol coverage.
 
 ## Market job
 
@@ -27,7 +27,7 @@ The broad UTC window covers the full Eastern-time session through daylight-savin
 
 ### Provider unavailable or stale
 
-Stop new simulated fills for affected symbols. Carry the last valid valuation with a stale label; do not claim it is current. Rankings remain provisional. Resume only after health and freshness checks recover.
+Classroom mode continues immediate execution at the last downloaded price and retries refresh automatically. Preserve source timestamps and unsynced receipts. The online market/limit engine continues to wait for eligible fresh quotes. Standings reflect only trades received from devices.
 
 ### Market job delayed
 
@@ -43,7 +43,7 @@ Pause the affected game. Compare opening deposit plus ledger events to cash, fil
 
 ## Backup and recovery
 
-Before real-student launch, enable Neon point-in-time recovery/retention appropriate to the service level, document restoration owners, and practice a restore into an isolated environment. Keep schema migrations additive and review destructive changes separately.
+Enable Neon point-in-time recovery/retention appropriate to the service level, document restoration owners, and practice a restore into an isolated environment. Keep schema migrations additive and review destructive changes separately.
 
 ## Release sequence
 

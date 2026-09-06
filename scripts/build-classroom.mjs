@@ -1,0 +1,18 @@
+import { build } from "esbuild";
+import { createHash } from "node:crypto";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
+const output = "public/classroom";
+await mkdir(output, { recursive: true });
+const result = await build({ entryPoints: ["src/classroom/app.tsx"], bundle: true, minify: true, write: false, format: "iife", target: "chrome80", jsx: "automatic", define: { "process.env.NODE_ENV": '"production"' }, outfile: "app.js" });
+const script = result.outputFiles[0].contents;
+const css = await readFile("src/classroom/style.css");
+const version = createHash("sha256").update(script).update(css).update(await readFile("src/classroom/worker.ts")).digest("hex").slice(0, 16);
+const jsPath = `/classroom/app-${version}.js`;
+const cssPath = `/classroom/style-${version}.css`;
+await writeFile(`public${jsPath}`, script);
+await writeFile(`public${cssPath}`, css);
+await writeFile(`${output}/index.html`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#153d34"><meta name="robots" content="noindex"><title>Market Lab · Classroom</title><link rel="manifest" href="/classroom/manifest.webmanifest"><link rel="icon" href="/classroom/icon.svg"><link rel="stylesheet" href="${cssPath}"><script defer src="${jsPath}"></script></head><body><div id="root"><main><h1>Market Lab</h1><p>Opening your classroom…</p><noscript>Enable JavaScript in Silk to use Market Lab.</noscript></main></div></body></html>`);
+await writeFile(`${output}/manifest.webmanifest`, JSON.stringify({ name: "Market Lab Classroom", short_name: "Market Lab", start_url: "/classroom", scope: "/classroom", display: "standalone", background_color: "#f8f7ef", theme_color: "#153d34", icons: [{ src: "/classroom/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }] }));
+await writeFile(`${output}/icon.svg`, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="38" fill="#153d34"/><path d="M42 134V92h22v42zm43 0V62h22v72zm43 0V38h22v96z" fill="#c7f36b"/></svg>');
+await build({ entryPoints: ["src/classroom/worker.ts"], bundle: true, minify: true, format: "iife", target: "chrome80", outfile: `${output}/sw.js`, define: { CLASSROOM_VERSION: JSON.stringify(version), CLASSROOM_ASSETS: JSON.stringify(["/classroom/index.html", jsPath, cssPath, "/classroom/manifest.webmanifest", "/classroom/icon.svg"]) } });
+console.log(`Classroom offline shell: ${version} (${Math.round(script.length / 1024)} KiB JS before gzip)`);

@@ -5,7 +5,7 @@ const faqs = [
   ["What counts as my portfolio value?", "Cash plus the current live IEX value of every holding. Cash reserved for an open order still belongs to the portfolio; it simply cannot be spent twice."],
   ["Does completing a lesson improve my rank?", "No. The leaderboard is based only on portfolio equity. Lessons and recognitions appear in a separate learning record."],
   ["Can I lose real money?", "No. Every balance, order, fill, gain, and loss in Market Lab is simulated."],
-  ["Are these live prices?", "Yes. This personal demo uses Alpaca Basic’s real-time IEX feed. IEX represents trading on one U.S. exchange, so prices can differ slightly from a consolidated whole-market quote."],
+  ["Are these live prices?", "Yes. Market Lab uses Alpaca Basic’s real-time IEX feed. IEX represents trading on one U.S. exchange, so prices can differ slightly from a consolidated whole-market quote."],
 ];
 
 export default function HelpPage() {

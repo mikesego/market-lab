@@ -17,5 +17,5 @@ const links = [
 
 export function TeacherNav({ basePath = "/teacher/demo" }: { basePath?: string }) {
   const pathname = usePathname();
-  return <nav aria-label="Teacher workspace">{links.map(([suffix, label, Icon]) => { const href = `${basePath}${suffix}`; const active = suffix === "" ? pathname === href : pathname.startsWith(href); return <Link key={href} href={href} className={cn("nav-link focus-ring", active && "nav-link-active")}><Icon size={18} />{label}</Link>; })}</nav>;
+  return <nav aria-label="Teacher workspace">{basePath !== "/teacher/demo" && <Link href={`${basePath}/devices`} className={cn("nav-link focus-ring", pathname.endsWith("/devices") && "nav-link-active")}><UsersRound size={18} />Classroom devices</Link>}{links.map(([suffix, label, Icon]) => { const href = `${basePath}${suffix}`; const active = suffix === "" ? pathname === href : pathname.startsWith(href); return <Link key={href} href={href} className={cn("nav-link focus-ring", active && "nav-link-active")}><Icon size={18} />{label}</Link>; })}</nav>;
 }

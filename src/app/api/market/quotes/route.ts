@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   try {
     const symbols = parsed.data ? parsed.data.split(",").slice(0, 25).map((symbol) => symbol.toUpperCase()) : undefined;
     const quotes = await marketDataProvider.getQuotes(symbols);
-    return Response.json({ provider: marketDataProvider.id, mode: "personal-live-iex", quotes }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ provider: marketDataProvider.id, mode: "classroom-live-iex", quotes }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return Response.json({ error: "Live market data is temporarily unavailable." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
